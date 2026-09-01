@@ -1,0 +1,22 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# Test / tooling caches
+.pytest_cache/
+.mypy_cache/
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# Local artifacts (generated reports are user output, not source)
+*.pdf
+!docs/**/*.pdf
+
+# Working notes, not source (remove this line to publish them)
+HERMES_PROMPT_*.md

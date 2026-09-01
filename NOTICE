@@ -1,0 +1,15 @@
+SPC / Process Capability Analyzer
+Copyright 2026 İsmail Bilgehan Kazancı
+
+Licensed under the Apache License, Version 2.0 (see LICENSE).
+
+The statistical methodology implemented here follows published references
+(Montgomery; AIAG; NIST/SEMATECH; ASTM; Bissell 1990), cited per formula in
+docs/FORMULAS.md. Those references are not distributed with this software.
+
+examples/pistonrings.csv and examples/pistonrings_phase1.csv contain piston-
+ring diameter measurements taken from the R package 'qcc' (dataset
+'pistonrings'); the measurements originate from Montgomery, Introduction to
+Statistical Quality Control. They are included as reference data for
+verifying the implementation against published values, not as part of the
+licensed software.

@@ -1,0 +1,21 @@
+# SPC / Process Capability Analyzer — dependencies
+# Core numeric + data (M1+)
+numpy>=1.26
+scipy>=1.11
+pandas>=2.0
+
+# File I/O (M1 io, M5 reporting)
+openpyxl>=3.1
+
+# Charts (M4)
+matplotlib>=3.8
+
+# Reporting (M5/M7)
+reportlab>=4.0
+
+# UI (M6)
+streamlit>=1.30
+
+# Testing (all milestones)
+pytest>=8.0
+pypdf>=4.0        # PDF content verification in integration tests

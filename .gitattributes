@@ -1,0 +1,15 @@
+# Normalise line endings: the repository stores LF, checkouts get the platform
+# default. Without this, files edited on Windows land as CRLF and every diff on
+# Linux/macOS is noise.
+* text=auto eol=lf
+
+# Binary assets must never be normalised.
+*.png binary
+*.jpg binary
+*.pdf binary
+*.xlsx binary
+*.xls  binary
+*.rda  binary
+
+# Keep data files byte-stable.
+*.csv text eol=lf
