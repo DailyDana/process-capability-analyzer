@@ -1,6 +1,6 @@
 # SPC / Process Capability Analyzer
 
-[![CI](https://github.com/DailyDana/spc-analyzer/actions/workflows/ci.yml/badge.svg)](https://github.com/DailyDana/spc-analyzer/actions/workflows/ci.yml)
+[![CI](https://github.com/DailyDana/process-capability-analyzer/actions/workflows/ci.yml/badge.svg)](https://github.com/DailyDana/process-capability-analyzer/actions/workflows/ci.yml)
 [![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-blue.svg)](https://www.python.org/downloads/)
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
 

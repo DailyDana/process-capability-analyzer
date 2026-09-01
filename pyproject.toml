@@ -3,7 +3,7 @@ requires = ["setuptools>=68"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "spc-analyzer"
+name = "process-capability-analyzer"
 version = "0.1.0"
 description = "Professional SPC / Process Capability Analysis tool for manufacturing engineering"
 requires-python = ">=3.10"
