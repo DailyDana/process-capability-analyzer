@@ -1,8 +1,12 @@
 # SPC / Process Capability Analyzer
 
+[![Live demo](https://static.streamlit.io/badges/streamlit_badge_black_white.svg)](https://spc-analyzer.streamlit.app/)
 [![CI](https://github.com/DailyDana/process-capability-analyzer/actions/workflows/ci.yml/badge.svg)](https://github.com/DailyDana/process-capability-analyzer/actions/workflows/ci.yml)
 [![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-blue.svg)](https://www.python.org/downloads/)
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
+
+**[Try it live -> spc-analyzer.streamlit.app](https://spc-analyzer.streamlit.app/)** — no install; the piston-ring
+reference dataset below is in `examples/`.
 
 A statistical process control (SPC) and process-capability analysis tool for
 manufacturing engineering — built to produce **defensible engineering
