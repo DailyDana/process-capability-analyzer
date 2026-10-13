@@ -5,12 +5,15 @@
 [![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-blue.svg)](https://www.python.org/downloads/)
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
 
-**[Try it live -> spc-analyzer.streamlit.app](https://spc-analyzer.streamlit.app/)** — no install; the piston-ring
-reference dataset below is in `examples/`.
+**[Try it live -> spc-analyzer.streamlit.app](https://spc-analyzer.streamlit.app/)** — no install. The Gage R&R
+page opens on the AIAG reference study and reproduces Minitab's published results
+without any input.
 
-A statistical process control (SPC) and process-capability analysis tool for
-manufacturing engineering — built to produce **defensible engineering
-statements**, not just charts:
+Free, open-source statistics for the three questions a supplier answers before
+shipping a new part: **is the gauge good enough** (Gage R&R), **is the process
+stable** (SPC charts), and **is it capable** (Cp/Cpk vs Pp/Ppk). Every method is
+checked against published results, and every output is a **defensible
+engineering statement**, not just a chart:
 
 > *"Cpk = 1.09 from within-subgroup sigma, but the individuals chart shows an
 > N1 outlier and an N2 run — this Cpk is not trustworthy evidence of future
@@ -22,6 +25,12 @@ production measurement data.
 
 ## Key features
 
+- **Gage R&R (crossed):** ANOVA (random-effects F tests, interaction pooled at
+  p > 0.25 by convention) and the AIAG Average & Range method. Reports EV, AV,
+  interaction, GRR, PV, %Contribution, %Study Var, %Tolerance (k = 6 or 5.15) and
+  ndc. A range chart checks repeat readings **before** anything is concluded.
+  Verified to the published decimal against Minitab, SAS and BPI analyses of
+  two reference studies.
 - **Control charts:** X̄–R, X̄–S, and I–MR with proper 3σ limits from the
   published control-chart constants (never plain ±3·stdev of the plotted data).
 - **Run-rule engine:** full **Western Electric** (4 rules) and **Nelson**
@@ -52,6 +61,35 @@ production measurement data.
 
 ![Example I-MR chart](docs/images/example_imr_chart.png)
 
+## PPAP scenario: the gauge first, then the process
+
+A supplier launching a part for an automotive customer must show, for every
+critical characteristic, that the measurement system is adequate **and** that the
+process is capable. The order matters. A capability study run with an unproven
+gauge measures the gauge as much as the process. The usual bar is a Gage R&R
+under 10% (10-30% only with customer approval) followed by an initial process
+study with Ppk of at least 1.67. Customer-specific requirements take precedence.
+
+The AIAG reference study, opened by default on the Gage R&R page, shows what
+the tool does with a gauge that is not ready:
+
+1. **Repeat readings first.** The range chart flags appraiser B on part 4
+   (0.01, 1.03, 0.20 → R = 1.02, above the UCL of 0.88). Every figure below is
+   reported with that caveat until the cell is explained or re-measured.
+2. **Verdict.** GRR is 27.9% of study variation and 22.7% of the tolerance: *may
+   be acceptable depending on the application*. ndc = 4 (< 5): the gauge cannot
+   reliably tell these parts apart.
+3. **Where the variation comes from.** Repeatability (18.4%) and
+   reproducibility (20.9%) are comparable, so the recommendation is to work on
+   the gauge set-up and the measurement method together. The interaction plot
+   shows where to start on the method: appraiser C reads lowest on all ten
+   parts (average −0.25 against +0.19 for A).
+
+Only once the study passes does the tool recommend proceeding to the capability
+study on the other page.
+
+![R chart by operator for the AIAG study](docs/images/gage_rr_range_chart.png)
+
 ## Architecture
 
 ```
@@ -64,6 +102,7 @@ app/statistics  descriptive stats · control-chart constants · sigma estimators
 app/spc         control limits (X̄–R, X̄–S, I–MR) · WE/Nelson rule engine
         ↓
 app/capability  Cp/Cpk (within σ) · Pp/Ppk (overall σ) · guards · Cpk CI
+app/msa         Gage R&R: ANOVA · Average & Range · range check · ndc
         ↓
 app/interpret   deterministic conclusions ⟂ recommendations
         ↓
@@ -73,7 +112,7 @@ app/ui          Streamlit presentation (thin; calls app/services only)
 ```
 
 Dependencies point **downward only**. The statistical core (`data`,
-`statistics`, `spc`, `capability`, `interpret`) is pure Python with no UI or
+`statistics`, `spc`, `capability`, `msa`, `interpret`) is pure Python with no UI or
 I/O dependency and is fully unit-tested. `app/services` orchestrates the
 sequence-of-analysis (validate → charts → **stability first** → sigma →
 capability → interpretation); `app/charts` renders validated results without
@@ -133,6 +172,12 @@ A typical analysis session:
    and, separately, engineering recommendations with their triggers.
 7. **Export** (section 8) — CSV, Excel, PDF report, or PNG/SVG charts.
 
+For a **Gage R&R** study, switch to the *Gage R&R (MSA)* page. Upload a long-format
+file with one row per reading (part, operator, measurement, optional trial),
+choose the method, and optionally enter the tolerance. A missing reading is
+reported by row rather than dropped, because a crossed study must be balanced.
+Results export to CSV and Excel.
+
 ## Example
 
 ### Verification against published results
@@ -154,6 +199,20 @@ Phase I (samples 1-25) is reported stable with no rule violations, Cp 1.70 /
 Cpk 1.66; including the Phase II samples the drift is caught as N1/N5/N6 and the
 capability verdict is caveated accordingly. See
 [`examples/DATASETS.md`](examples/DATASETS.md).
+
+### Gage R&R verification against published results
+
+Two reference studies ship in `examples/`, each with independently published
+analyses ([`examples/DATASETS.md`](examples/DATASETS.md)):
+
+| study | published analysis | what matches |
+|---|---|---|
+| AIAG MSA 4th ed. example (10 parts × 3 appraisers × 3 trials) | Minitab, *Example of Crossed Gage R&R Study* | every ANOVA SS/MS/F/p in both models; every variance component, %Contribution, %Study Var and %Tolerance; ndc = 4 |
+| same | BPI Consulting (2015), Average & Range | EV 0.202, AV 0.230, GRR 0.306, PV 1.105, TV 1.146, %GRR 26.68 |
+| Houf & Burman (1988), thermal impedance | SAS/STAT PROC VARCOMP Example 121.2 | all four variance components, GRR, precision-to-tolerance 0.20145 |
+
+The ANOVA is additionally checked against statsmodels on simulated studies, and
+a Monte Carlo test checks that the variance-component estimators are unbiased.
 
 ### Synthetic rule-engine example
 
@@ -178,7 +237,7 @@ The chart image above is the actual output for this dataset.
 python -m pytest
 ```
 
-The suite currently contains **776 tests** (all passing, on Python 3.10 / 3.11 / 3.12 in CI), covering:
+The suite currently contains **890 tests** (all passing, on Python 3.10 / 3.11 / 3.12 in CI), covering:
 
 - known-answer verification of every statistic against independently
   hand-computed values (constants are additionally cross-validated against
@@ -192,7 +251,10 @@ The suite currently contains **776 tests** (all passing, on Python 3.10 / 3.11 /
 - interpretation scenarios asserting on structured codes, not prose,
 - full-pipeline integration tests (CSV → analysis → interpretation → CSV/Excel/
   PDF), with PDF content verified by text extraction,
-- execution of the real Streamlit app via Streamlit's `AppTest` harness.
+- Gage R&R against two published studies (Minitab, SAS, BPI), an independent
+  ANOVA implementation (statsmodels, stored as fixtures), a hand-computed study
+  and a Monte Carlo unbiasedness check,
+- execution of the real Streamlit pages via Streamlit's `AppTest` harness.
 
 Code-coverage percentages are not claimed because coverage is not currently
 measured.
@@ -211,9 +273,12 @@ measured.
   conventions** that vary by industry and customer standard; they are
   configurable in the app and are not universal statistical laws.
 - The Cpk confidence interval is a large-sample approximation and is not exact.
+- Gage R&R covers **crossed, balanced studies of variable data** only. Attribute
+  agreement, nested designs, linearity and bias studies are not implemented. The
+  %GRR bands (10% / 30%) and ndc ≥ 5 are AIAG conventions, configurable in the
+  app, and are applied to %Study Var, not %Contribution.
 - This software is an engineering analysis aid. It does **not** replace
-  professional engineering judgment, customer-specific quality requirements, or
-  formal measurement-system analysis.
+  professional engineering judgment or customer-specific quality requirements.
 
 ## License
 
@@ -232,5 +297,7 @@ Montgomery, D.C., *Introduction to Statistical Quality Control*, 7th ed.
 (2005) · NIST/SEMATECH *e-Handbook of Statistical Methods*, §6 · David &
 Nagaraja, *Order Statistics*, 3rd ed. (Wiley, 2003) · Bissell, A.F., "How
 reliable is your capability index?", *Applied Statistics* 39(3), 1990 · ASTM,
-*Manual on Presentation of Data and Control Chart Analysis* (STP-15D).
+*Manual on Presentation of Data and Control Chart Analysis* (STP-15D) · AIAG,
+*Measurement Systems Analysis Reference Manual*, 4th ed. (2010) · Burdick,
+Borror & Montgomery, *Design and Analysis of Gauge R&R Studies* (ASA-SIAM, 2005).
 Per-formula citations: [`docs/FORMULAS.md`](docs/FORMULAS.md).
