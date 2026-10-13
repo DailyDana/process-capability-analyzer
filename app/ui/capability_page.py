@@ -1,6 +1,6 @@
-"""SPC / Process Capability Analyzer — Streamlit application.
+"""Process capability (SPC) page of the Streamlit application.
 
-Run with:  streamlit run app/ui/streamlit_app.py
+Run the app with:  streamlit run app/ui/streamlit_app.py  (the page router)
 
 This module is a THIN presentation layer. Every number it displays comes from
 the validated domain/service layers:
@@ -19,7 +19,7 @@ import dataclasses
 import sys
 from pathlib import Path
 
-# Allow `streamlit run app/ui/streamlit_app.py` from the project root.
+# Allow running from the project root (via the router or this file directly).
 _ROOT = Path(__file__).resolve().parent.parent.parent
 if str(_ROOT) not in sys.path:
     sys.path.insert(0, str(_ROOT))
@@ -42,12 +42,6 @@ from app.services.data_loader import clean_column, load_table
 from app.spc.rules import RuleSet
 from app.statistics.variation import WithinEstimator
 from app.ui.formatting import NA_DISPLAY, fmt_index, fmt_num, severity_icon, with_unit
-
-st.set_page_config(
-    page_title="SPC / Process Capability Analyzer",
-    page_icon="📐",
-    layout="wide",
-)
 
 CHART_LABELS = {
     "X̄–R  (subgroups, n ≤ 8)": ChartKind.XBAR_R,
@@ -216,7 +210,7 @@ else:
     st.caption("Enter or paste measurements. Blank rows are ignored.")
     seed = pd.DataFrame({"measurement": [None] * 10})
     edited = st.data_editor(
-        seed, num_rows="dynamic", use_container_width=True, key="manual_editor",
+        seed, num_rows="dynamic", width="stretch", key="manual_editor",
         column_config={
             "measurement": st.column_config.NumberColumn(
                 "Measurement", format="%.6f", help="Measured value."
@@ -361,7 +355,7 @@ with pv1:
         }
         for r in cleaning.records
     ]
-    st.dataframe(pd.DataFrame(rows), use_container_width=True, height=280)
+    st.dataframe(pd.DataFrame(rows), width="stretch", height=280)
 with pv2:
     st.metric("Observations analysed", len(cleaning.used_indices))
     if cleaning.excluded:
@@ -578,7 +572,7 @@ for column, model, name in ((lc, loc, "Location chart"), (dcol, disp, "Dispersio
         m3.metric("LCL", fmt_num(model.lcl, decimals))
 
 fig = chart_render.render_pair(models)
-st.pyplot(fig, use_container_width=True)
+st.pyplot(fig, width="stretch")
 plt.close(fig)
 
 st.subheader("Rule violations")
@@ -596,7 +590,7 @@ else:
         }
         for v in violations
     ]
-    st.dataframe(pd.DataFrame(vrows), use_container_width=True)
+    st.dataframe(pd.DataFrame(vrows), width="stretch")
     with st.expander("Detailed explanations"):
         for v in violations:
             st.markdown(f"**{v.rule_id} — {v.rule_name}**")
@@ -800,21 +794,21 @@ else:
         data=csv_report.to_csv_string(bundle).encode("utf-8"),
         file_name="spc_analysis.csv",
         mime="text/csv",
-        use_container_width=True,
+        width="stretch",
     )
     e2.download_button(
         "⬇️ Download Excel report",
         data=excel_report.workbook_to_bytes(bundle),
         file_name="spc_report.xlsx",
         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        use_container_width=True,
+        width="stretch",
     )
     e3.download_button(
         "⬇️ Download PDF report",
         data=pdf_report.build_pdf_bytes(bundle, outcome.chart_models),
         file_name="spc_report.pdf",
         mime="application/pdf",
-        use_container_width=True,
+        width="stretch",
     )
 
 st.subheader("Chart images")
@@ -823,12 +817,12 @@ g1, g2 = st.columns(2)
 g1.download_button(
     "🖼️ Download charts (PNG, 200 dpi)",
     data=chart_render.figure_to_png_bytes(fig_export, dpi=200),
-    file_name="spc_charts.png", mime="image/png", use_container_width=True,
+    file_name="spc_charts.png", mime="image/png", width="stretch",
 )
 g2.download_button(
     "🖼️ Download charts (SVG, vector)",
     data=chart_render.figure_to_svg_bytes(fig_export),
-    file_name="spc_charts.svg", mime="image/svg+xml", use_container_width=True,
+    file_name="spc_charts.svg", mime="image/svg+xml", width="stretch",
 )
 plt.close(fig_export)
 

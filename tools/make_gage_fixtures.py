@@ -93,7 +93,7 @@ def main() -> None:
         lines.append("    },")
         print(f"{name}: wrote {csv.name}; interaction p = {p_int:.4g}")
     lines.append("}")
-    (FIX / "gage_oracle.py").write_text("\n".join(lines) + "\n", encoding="utf-8")
+    (FIX / "gage_oracle.py").write_text("\n".join(lines) + "\n", encoding="utf-8", newline="\n")
 
 
 if __name__ == "__main__":

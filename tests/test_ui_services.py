@@ -753,14 +753,14 @@ class TestSignatureCompleteness:
     def _load_signature():
         """Import `_signature` WITHOUT executing the Streamlit app script.
 
-        `app/ui/streamlit_app.py` is a script: importing it normally runs the
+        `app/ui/capability_page.py` is a script: importing it normally runs the
         whole page (and `st.stop()` is a no-op outside a script runner). We
         therefore compile only the function definitions we need.
         """
         import ast
         import pathlib
 
-        src = pathlib.Path("app/ui/streamlit_app.py").read_text(encoding="utf-8")
+        src = pathlib.Path("app/ui/capability_page.py").read_text(encoding="utf-8")
         tree = ast.parse(src)
         keep = [
             node for node in tree.body
@@ -864,7 +864,7 @@ class TestSignatureCompleteness:
         import inspect
         import pathlib
 
-        src = pathlib.Path("app/ui/streamlit_app.py").read_text(encoding="utf-8")
+        src = pathlib.Path("app/ui/capability_page.py").read_text(encoding="utf-8")
         for field in ("guard_thresholds", "ci_alpha"):
             exposed = f"{field}=" in src.split("def _signature")[0]
             assert not exposed, (
