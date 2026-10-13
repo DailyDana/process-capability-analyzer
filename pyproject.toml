@@ -4,8 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "process-capability-analyzer"
-version = "0.1.0"
-description = "Professional SPC / Process Capability Analysis tool for manufacturing engineering"
+version = "0.2.0"
+description = "SPC, process capability and Gage R&R (MSA) analysis for manufacturing engineering"
 requires-python = ">=3.10"
 readme = "README.md"
 license = "Apache-2.0"

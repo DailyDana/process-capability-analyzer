@@ -51,6 +51,10 @@ class ConclusionTopic(str, Enum):
     RULE_VIOLATIONS = "rule_violations"
     ZERO_VARIATION = "zero_variation"
     SIGMA_LEVEL = "sigma_level"
+    # Measurement system analysis (Gage R&R, app.msa)
+    MEASUREMENT_SYSTEM = "measurement_system"
+    DISCRIMINATION = "discrimination"
+    MEASUREMENT_CONSISTENCY = "measurement_consistency"
 
 
 class RecommendationCategory(str, Enum):
@@ -65,6 +69,10 @@ class RecommendationCategory(str, Enum):
     REVIEW_SPECIFICATION = "review_specification"
     VERIFY_GAUGE = "verify_gauge"
     MAINTAIN = "maintain"            # process is good; keep monitoring
+    # Measurement system analysis (Gage R&R, app.msa)
+    IMPROVE_REPEATABILITY = "improve_repeatability"      # equipment / fixture
+    IMPROVE_REPRODUCIBILITY = "improve_reproducibility"  # method / appraisers
+    PROCEED_TO_CAPABILITY = "proceed_to_capability"      # gauge fit for the study
 
 
 @dataclass(frozen=True, slots=True)

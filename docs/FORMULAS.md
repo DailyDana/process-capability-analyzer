@@ -37,6 +37,11 @@ choice explicitly instead of choosing silently.
   Wiley. (Distribution of the sample range.)
 - **[ASTM]** ASTM International. *Manual on Presentation of Data and Control
   Chart Analysis* (STP-15D).
+- **[AIAG-MSA]** Automotive Industry Action Group (2010). *Measurement Systems
+  Analysis Reference Manual*, 4th ed. (Gage R&R, K tables, acceptance bands, ndc.)
+- **[BBM]** Burdick, R.K., Borror, C.M. & Montgomery, D.C. (2005). *Design and
+  Analysis of Gauge R&R Studies*. ASA-SIAM. (Random-effects ANOVA for gauge
+  studies.)
 
 A **statistical-convention flag** in the text marks any place where more than
 one defensible convention exists; the tool documents the choice rather than
@@ -907,6 +912,211 @@ silently dropped; full numeric precision is preserved in CSV. Excel uses separat
 logical sheets (Summary, Measurements, Statistics, Capability, SPC, Violations,
 Interpretation).
 
+## 6. Measurement system analysis: crossed Gage R&R
+
+Implemented in `app/msa` (core), `app/services/gage_rr.py` (orchestration),
+`app/charts/gage_*` and `app/reporting/gage_report.py` (presentation and export).
+Verified against published results in `tests/test_msa_published.py` (§6.9).
+
+### 6.1 Scope and data
+
+A **balanced, crossed** study: `p` parts, `o` operators (appraisers), each
+operator measures each part `r` times, `p, o, r >= 2`. Data are stored as one
+array `y[i, j, k]` (part, operator, trial), so an unbalanced study cannot be
+represented.
+
+Input is long format (one row per reading). Unlike the capability path,
+**no row is ever dropped**: a missing or non-numeric reading unbalances the
+study, so it is an error that names the row (`app/msa/validation.py`). Warnings
+(not errors): fewer than 10 parts, fewer than 3 operators, fewer than 15
+repeatability degrees of freedom `p*o*(r-1)`, no variation at all.
+
+**Out of scope:** attribute agreement, nested and unbalanced designs, Type-1
+gauge studies, linearity and bias, confidence intervals for the components.
+
+### 6.2 Model
+
+Two-way random-effects model with interaction:
+
+```
+y_ijk = mu + P_i + O_j + (PO)_ij + e_ijk
+P ~ N(0, s2_P), O ~ N(0, s2_O), PO ~ N(0, s2_PO), e ~ N(0, s2_e), all independent
+```
+
+Repeatability = `s2_e`; reproducibility = `s2_O + s2_PO`; GRR = repeatability +
+reproducibility; total variation TV = GRR + `s2_P`.
+
+### 6.3 ANOVA method
+
+Sums of squares, with dots for averaging:
+
+| Source | SS | df |
+|---|---|---|
+| Part | `o r sum_i (ybar_i.. - ybar...)^2` | `p - 1` |
+| Operator | `p r sum_j (ybar_.j. - ybar...)^2` | `o - 1` |
+| Part x Operator | `r sum_ij (ybar_ij. - ybar_i.. - ybar_.j. + ybar...)^2` | `(p-1)(o-1)` |
+| Repeatability | `sum_ijk (y_ijk - ybar_ij.)^2` | `p o (r - 1)` |
+| Total | `sum_ijk (y_ijk - ybar...)^2` | `p o r - 1` |
+
+`MS = SS / df`. In the random-effects model the main effects are tested against
+the interaction: `F_P = MS_P / MS_PO`, `F_O = MS_O / MS_PO`,
+`F_PO = MS_PO / MS_E`. Solving the expected mean squares:
+
+```
+s2_e  = MS_E
+s2_PO = (MS_PO - MS_E) / r
+s2_O  = (MS_O - MS_PO) / (p r)
+s2_P  = (MS_P - MS_PO) / (o r)
+```
+
+**Interaction pooling (convention flag).** When the interaction p-value is
+greater than `alpha_pool` (default **0.25**, the AIAG/Minitab convention;
+configurable, 1.0 keeps the full model), the interaction is removed and pooled
+into error:
+
+```
+MS_E' = (SS_PO + SS_E) / (df_PO + df_E)
+s2_e  = MS_E',  s2_O = (MS_O - MS_E') / (p r),  s2_P = (MS_P - MS_E') / (o r)
+```
+
+The pooling level is not a significance test of the interaction. The
+interpretation reports the interaction as *significant* only at
+`interaction_alpha` (default 0.05).
+
+**Negative estimates** are set to zero and reported as clamped (raw value kept
+in `raw_estimates`). The raw estimators are unbiased; a Monte Carlo test checks
+this against known components.
+
+**Rounding floor.** Any SS below `N * floor^2`, with
+`floor = 64 * eps * max|y|`, is numerically zero. Without it, a gauge with no
+measurement variation at all reports GRR ~ 1e-16 and ndc ~ 1e15. The floor is
+about 1e-14 relative to the data, far below any physical measurement variation.
+
+### 6.4 Average & Range method (AIAG)
+
+```
+R-bar-bar = mean over operators of each operator's average cell range
+EV  = R-bar-bar * K1(r)
+AV  = sqrt( (X-bar_diff * K2(o))^2 - EV^2 / (p r) )    (0 if the radicand < 0)
+GRR = sqrt(EV^2 + AV^2)
+PV  = R_p * K3(p),   TV = sqrt(GRR^2 + PV^2)
+```
+
+`X-bar_diff` is the range of the operator averages and `R_p` the range of the
+part averages. These are standard-deviation estimates (the 4th edition dropped
+the 5.15 multiplier).
+
+`K1 = 1/d2*` (trials), `K2 = 1/d2*` (appraisers), `K3 = 1/d2*` (parts), from the
+AIAG tables, reproduced verbatim in `app/msa/constants.py`:
+
+| n | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 |
+|---|---|---|---|---|---|---|---|---|---|
+| K1 (trials) | 0.8862 | 0.5908 | | | | | | | |
+| K2 (appraisers) | 0.7071 | 0.5231 | | | | | | | |
+| K3 (parts) | 0.7071 | 0.5231 | 0.4467 | 0.4030 | 0.3742 | 0.3534 | 0.3375 | 0.3249 | 0.3146 |
+
+They are **not** derived from the control-chart `d2` (§1.6.2). `d2*` depends on
+the number of ranges averaged: K1 assumes many (`d2* ~ d2`), but K2 and K3 use a
+single range, where `d2*(2) = 1.41` against `d2(2) = 1.128`. Studies outside the
+tables (for example 4 operators or 11 parts) must use the ANOVA method.
+
+**Limitation.** The method cannot separate the interaction. When an
+operator x part interaction exists it under-states GRR: on simulated data with a
+strong interaction it reported 27% where ANOVA reported 48%. ANOVA is the
+default for this reason.
+
+### 6.5 Range chart: measurement consistency first
+
+Every cell range is compared with `UCL = D4(r) * R-bar` (`R-bar` = mean of all
+cell ranges; `D4` from §1.6.3, exact moments: 3.2665 for r=2, 2.5746 for r=3).
+A cell above the UCL means one appraiser was inconsistent on one part. All
+results are then reported with a caveat, and the interpretation leads with the
+flagged cells. This is the measurement analogue of "stability before
+capability" (§3.1).
+
+### 6.6 Summary table
+
+For each source `x`, with standard deviation `s_x` and `s_TV`:
+
+```
+%Contribution = 100 * s_x^2 / s_TV^2         (variances; sums to 100%)
+%Study Var    = 100 * s_x / s_TV             (ratio of SDs; does not sum to 100%)
+Study Var     = k * s_x
+%Tolerance    = 100 * k * s_x / (USL - LSL)
+ndc           = trunc(1.41 * s_P / s_GRR)    (None when s_GRR = 0)
+```
+
+**Convention flags.**
+
+- `k` = **6** by default (AIAG 4th ed., Minitab, SAS); 5.15 is available for
+  the 3rd-edition convention. `k` changes Study Var and %Tolerance only, never
+  %Contribution or %Study Var.
+- `ndc` uses AIAG's 1.41 and truncates. Software that uses `sqrt(2)` can differ
+  only when the product lands within 0.3% of an integer.
+- **The acceptance bands apply to %Study Var, not %Contribution.** For the AIAG
+  example %Contribution is 7.8% while %Study Var is 27.9%. Some authors argue
+  that the variance ratio is the right one to judge. This tool reports both and
+  judges %Study Var, as AIAG does.
+
+### 6.7 Interpretation (engineering conventions, configurable)
+
+`GageThresholds` sets the cut-points:
+
+| %GRR (of study variation, and of tolerance if given) | Verdict |
+|---|---|
+| `< 10%` | acceptable |
+| `10% to 30%` | may be acceptable depending on the application |
+| `> 30%` | unacceptable |
+
+Other cut-points:
+
+- `ndc >= 5` is required for adequate discrimination.
+- The headline reports the worse of the study-variation and tolerance verdicts.
+  The first answers "can the gauge see process variation" (process control). The
+  second answers "can it sort parts against the specification" (product control).
+- A component "dominates" when its variance is at least 2x the other's. This
+  only selects the recommendation: equipment and fixture for repeatability,
+  method and appraisers for reproducibility, or both.
+
+Trigger codes:
+
+| Code | Condition |
+|---|---|
+| `msa_zero_variation` | total variation is zero; nothing else is assessed |
+| `msa_ranges_out_of_control` | a cell range is above the UCL; listed first, caveats the headline |
+| `msa_grr_{acceptable,marginal,unacceptable}` | %GRR of study variation |
+| `msa_grr_tolerance_*` | %GRR of tolerance, when a tolerance is given |
+| `msa_ndc_adequate` / `msa_ndc_low` | `ndc` vs `ndc_min` |
+| `msa_grr_zero` | `s_GRR = 0` (usually gauge resolution, not a perfect gauge) |
+| `msa_interaction_{significant,retained,pooled}` | ANOVA only |
+| `msa_component_clamped` | a negative estimate was set to zero |
+
+Recommendations: `rec_msa_proceed` (only when every check passes),
+`rec_msa_repeatability`, `rec_msa_reproducibility`, `rec_msa_both`,
+`rec_msa_interaction`, `rec_msa_discrimination`, `rec_msa_investigate_ranges`
+and `rec_msa_resolution`.
+
+### 6.8 Charts and export (no statistics)
+
+- **Components of variation:** the summary-table percentages.
+- **R chart by operator:** limits taken from §6.5, not recomputed.
+- **Operator x part interaction plot:** cell means.
+- **Exports:** CSV at full precision and an Excel workbook (Gage R&R, ANOVA,
+  Interpretation and Measurements sheets).
+
+### 6.9 Verification
+
+| Data | Reference | Checked |
+|---|---|---|
+| AIAG MSA 4th ed. example (10 x 3 x 3) | Minitab, crossed Gage R&R example | Every ANOVA SS, MS, F and p, both models. Every variance component, SD, 6xSD, %Contribution, %Study Var, %Tolerance (tolerance 8). ndc = 4 |
+| same | BPI Consulting (2015), Table 2 | Average & Range intermediates, EV, AV, GRR, PV, TV and the % of TV |
+| Houf & Burman (1988), 10 x 3 x 3 | SAS/STAT PROC VARCOMP Example 121.2 | ANOVA SS and MS; Var(part), Var(operator), Var(interaction), Var(error); GRR; PTR(18, 58, 6) |
+| two simulated studies | statsmodels OLS ANOVA (stored oracle, `tools/make_gage_fixtures.py`) | SS, df, interaction F and p; pooled and kept branches |
+| hand-computed 2 x 2 x 2 study | arithmetic in the test file | SS, F, components, clamping, Average & Range |
+
+All published figures match to the published number of decimals. The single
+exception is BPI's %PV of 96.37 against 96.376 unrounded.
+
 ---
 
 ## Document status
@@ -914,6 +1124,7 @@ Interpretation).
 This reference is complete for the released version. The PDF report's Technical
 Appendix cites this document as the controlled methodology source; the PDF and
 the UI never restate formulas independently. Any future statistical addition
-(e.g. non-normal capability methods, variable-limit charts) must be documented
+(e.g. non-normal capability methods, variable-limit charts, further MSA
+studies) must be documented
 here **before** implementation, following the same formula / assumptions /
 convention-flag / reference format.

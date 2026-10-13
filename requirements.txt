@@ -14,7 +14,7 @@ matplotlib>=3.8
 reportlab>=4.0
 
 # UI (M6)
-streamlit>=1.30
+streamlit>=1.62  # tested version; st.navigation, width="stretch"
 
 # Testing (all milestones)
 pytest>=8.0

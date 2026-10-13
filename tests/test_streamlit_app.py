@@ -1,7 +1,7 @@
 """End-to-end smoke test of the actual Streamlit app.
 
 Uses Streamlit's official AppTest harness, which EXECUTES the real
-``app/ui/streamlit_app.py`` script in-process and exposes the rendered elements.
+``app/ui/capability_page.py`` script in-process and exposes the rendered elements.
 This verifies the app actually runs (imports, widget wiring, section rendering)
 rather than just checking that a server port is open.
 
@@ -18,7 +18,7 @@ import numpy as np
 import pytest
 from streamlit.testing.v1 import AppTest
 
-APP = str(Path(__file__).resolve().parent.parent / "app" / "ui" / "streamlit_app.py")
+APP = str(Path(__file__).resolve().parent.parent / "app" / "ui" / "capability_page.py")
 
 
 def _representative_values(n: int = 58, seed: int = 2026) -> list[float]:
