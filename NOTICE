@@ -13,3 +13,12 @@ ring diameter measurements taken from the R package 'qcc' (dataset
 Statistical Quality Control. They are included as reference data for
 verifying the implementation against published values, not as part of the
 licensed software.
+
+examples/gage_rr_aiag.csv contains the example Gage R&R study of the AIAG
+Measurement Systems Analysis Reference Manual, 4th ed. (2010), as reproduced
+by BPI Consulting, "Three Ways to Analyze a Gage R&R Study" (2015).
+examples/gage_rr_thermal_impedance.csv contains the thermal impedance study of
+Houf & Burman (1988), as listed in the SAS/STAT 14.1 User's Guide, PROC VARCOMP
+Example 121.2. Both are included, with attribution, as reference data for
+verifying the implementation against published results, not as part of the
+licensed software. Sources and the compared figures: examples/DATASETS.md.
