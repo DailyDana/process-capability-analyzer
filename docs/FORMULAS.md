@@ -39,6 +39,8 @@ choice explicitly instead of choosing silently.
   Chart Analysis* (STP-15D).
 - **[AIAG-MSA]** Automotive Industry Action Group (2010). *Measurement Systems
   Analysis Reference Manual*, 4th ed. (Gage R&R, K tables, acceptance bands, ndc.)
+- **[Bosch10]** Robert Bosch GmbH. *Booklet 10: Capability of Measurement and
+  Test Processes* (2019/2020 edition). (Type-1 study, Cg/Cgk, T_min.)
 - **[BBM]** Burdick, R.K., Borror, C.M. & Montgomery, D.C. (2005). *Design and
   Analysis of Gauge R&R Studies*. ASA-SIAM. (Random-effects ANOVA for gauge
   studies.)
@@ -1101,8 +1103,9 @@ and `rec_msa_resolution`.
 - **Components of variation:** the summary-table percentages.
 - **R chart by operator:** limits taken from §6.5, not recomputed.
 - **Operator x part interaction plot:** cell means.
-- **Exports:** CSV at full precision and an Excel workbook (Gage R&R, ANOVA,
-  Interpretation and Measurements sheets).
+- **Exports:** CSV at full precision, an Excel workbook (Gage R&R, ANOVA,
+  Interpretation and Measurements sheets), and a PDF report
+  (`app/reporting/msa_pdf.py`) built from the same objects.
 
 ### 6.9 Verification
 
@@ -1116,6 +1119,107 @@ and `rec_msa_resolution`.
 
 All published figures match to the published number of decimals. The single
 exception is BPI's %PV of 96.37 against 96.376 unrounded.
+
+## 7. Measurement system analysis: Type-1 gauge study (Cg, Cgk)
+
+Implemented in `app/msa/type1.py`, with the interpretation in
+`app/msa/interpret.py`. Verified in `tests/test_msa_type1.py` (§7.5).
+
+### 7.1 Study
+
+One appraiser measures one reference part of known value `x_m` (traceable,
+usually a setting master) `n` times, without re-fixturing changes beyond the
+normal procedure. Bosch asks for 50 readings with 25 as the minimum. The tool
+rejects fewer than 10 and warns below 25 and below 50. This study comes before
+the Gage R&R study: it checks the gauge alone, with the operator and part
+effects removed.
+
+### 7.2 Formulas
+
+With `T` the tolerance, `K` the percentage of `T` the gauge may use (default
+20) and `L` the number of standard deviations it must cover (default 6):
+
+```
+x-bar, s        mean and sample standard deviation (n - 1) of the readings
+bias            = x-bar - x_m
+Cg              = (K/100 * T) / (L * s)               = 0.2 T / 6s with the defaults
+Cgk             = (K/200 * T - |bias|) / (L/2 * s)    = (0.1 T - |bias|) / 3s
+%Var(Rep)       = 100 * L * s / T                     = K / Cg
+%Var(Rep+Bias)  = K / Cgk                             (undefined when Cgk <= 0)
+t               = bias / (s / sqrt(n)),  two-sided p from t(n - 1)
+%RE             = 100 * resolution / T
+```
+
+**Bias test.** Bosch Booklet 10 declares the bias significant when
+`|bias| / s >= t(0.975, n - 1) / sqrt(n)` (0.284 for n = 50, 0.413 for n = 25).
+This is exactly the two-sided t-test at alpha = 0.05, so the tool reports one
+test in both forms: Bosch's ratio and the t statistic with its p-value.
+
+**Confidence intervals.**
+
+- Cg is proportional to `1/s`, so the exact interval follows from the
+  chi-square distribution of `s^2`:
+  `Cg * sqrt(chi2(alpha/2, n-1) / (n-1))` to `Cg * sqrt(chi2(1-alpha/2, n-1) / (n-1))`.
+- Cgk uses the Bissell (1990) normal approximation used for Cpk (§2.6), with
+  the `1/(9n)` term generalised to the `L/2` denominator `c`:
+  `Cgk +- z * sqrt(1/(c^2 n) + Cgk^2 / (2(n-1)))`.
+
+Both reproduce the intervals Bosch prints for its worked example.
+
+**Smallest passing tolerance** (Bosch's `T_min`). Each criterion is solved for
+`T` at the observed `s` and bias:
+
+```
+T_min(Cg)  = 1.33 * L * s / (K/100)
+T_min(Cgk) = (1.33 * L/2 * s + |bias|) / (K/200)
+T_min(RE)  = resolution / 0.05
+```
+
+This answers the practical question "what is the tightest tolerance this
+gauge can check?".
+
+**Zero spread.** When every reading is identical, `s = 0`, Cg is reported as
+`+inf`, and no t-test or interval is given. The interpretation treats this as
+a resolution problem, not a perfect gauge. The same float-rounding floor as
+§6.3 applies.
+
+### 7.3 Convention flags
+
+- `K = 20` and `L = 6` are the Bosch and Minitab defaults. Some customers
+  use `L = 4`, or `K = 15`. Both are configurable, and the interpretation text
+  states the values used.
+- The acceptance limit is **1.33** for both Cg and Cgk (Bosch Booklet 10;
+  the binding value is the customer's current requirement, sometimes 1.67).
+- Resolution: `%RE <= 5%` adequate, `5-10%` conditional, `> 10%` not
+  acceptable (Bosch).
+
+### 7.4 Interpretation
+
+Resolution is assessed first, because a coarse display invalidates the spread
+estimate. Cg and Cgk are judged against `index_min`. The bias test is reported
+whether or not it is significant. A gauge that is capable but has a
+significant bias gets a "correct the offset at the next calibration" note,
+not a failure. Codes: `type1_resolution_{ok,marginal,poor}`,
+`type1_zero_spread`, `type1_cg_{ok,low}`, `type1_cgk_{ok,low}`,
+`type1_bias_{significant,not_significant}`. Recommendations:
+`rec_type1_resolution`, `rec_type1_repeatability` (Cg low),
+`rec_type1_bias` (Cg ok, Cgk low), `rec_type1_bias_watch` and
+`rec_type1_proceed`.
+
+### 7.5 Verification
+
+| Data | Reference | Checked |
+|---|---|---|
+| Bosch Booklet 10, Procedure 1 worked example (n = 50) | the published form | mean, s, bias; Cg 2.01, Cgk 1.64; both confidence intervals (1.61-2.41, 1.30-1.98); %RE 1.67; "bias significant"; T_min(Cgk) 0.050696, T_min(RE) 0.020000 |
+| BPI Consulting, Type 1 Gage Study example (n = 50) | the published results | mean, s, bias, t 2.185, p 0.0337, Cg 0.343, Cgk 0.240, %Var(Rep+Bias) 83.22 |
+
+Two published figures differ from ours in the last digit, and the tests record
+both:
+
+- Bosch prints T_min(Cg) = 0.039701, where the exact value is 0.039696 (0.013%
+  apart). Bosch does not state the cause.
+- BPI prints %Var(Rep) = 58.2, which it computed from `s` rounded to 0.00485.
+  The unrounded `s` gives 58.25.
 
 ---
 

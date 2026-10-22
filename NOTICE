@@ -22,3 +22,10 @@ Houf & Burman (1988), as listed in the SAS/STAT 14.1 User's Guide, PROC VARCOMP
 Example 121.2. Both are included, with attribution, as reference data for
 verifying the implementation against published results, not as part of the
 licensed software. Sources and the compared figures: examples/DATASETS.md.
+
+examples/type1_bosch.csv contains the readings of the Procedure 1 worked
+example in Robert Bosch GmbH, Booklet 10 "Capability of Measurement and Test
+Processes". examples/type1_spcforexcel.csv contains the readings of BPI
+Consulting's "Type 1 Gage Study" example (SPC for Excel). Both are included,
+with attribution, as reference data for verification, not as part of the
+licensed software.
