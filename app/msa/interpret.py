@@ -38,8 +38,17 @@ from app.interpret.models import (
 )
 from app.msa.anova import AnovaResult
 from app.msa.models import GageMethod, GageRRResult
+from app.msa.type1 import Type1Result
 
-__all__ = ["GageThresholds", "GrrVerdict", "grr_verdict", "headline_verdict", "interpret_gage"]
+__all__ = [
+    "GageThresholds",
+    "GrrVerdict",
+    "grr_verdict",
+    "headline_verdict",
+    "interpret_gage",
+    "Type1Thresholds",
+    "interpret_type1",
+]
 
 
 @dataclass(frozen=True, slots=True)
@@ -395,3 +404,127 @@ def headline_verdict(result: GageRRResult, thresholds: GageThresholds = GageThre
     if not vals:
         return None
     return max((grr_verdict(v, thresholds) for v in vals), key=lambda v: _VERDICT_ORDER[v])
+
+
+# ===========================================================================
+# Type-1 gauge study
+# ===========================================================================
+@dataclass(frozen=True, slots=True)
+class Type1Thresholds:
+    """Cut-points for the Type-1 interpretation (Bosch Booklet 10 defaults).
+
+    index_min:
+        Cg and Cgk must both reach this (1.33; customers may require 1.67).
+    resolution_ok_pct, resolution_max_pct:
+        %RE <= 5 is adequate, 5-10 conditionally acceptable, > 10 not.
+    """
+
+    index_min: float = 1.33
+    resolution_ok_pct: float = 5.0
+    resolution_max_pct: float = 10.0
+
+    def __post_init__(self) -> None:
+        if self.index_min <= 0:
+            raise ValueError("index_min must be > 0.")
+        if not 0 < self.resolution_ok_pct < self.resolution_max_pct:
+            raise ValueError("Require 0 < resolution_ok_pct < resolution_max_pct.")
+
+
+def interpret_type1(result: Type1Result, thresholds: Type1Thresholds = Type1Thresholds()) -> InterpretationReport:
+    t = thresholds
+    concl: list[StatisticalConclusion] = []
+    recs: list[EngineeringRecommendation] = []
+    topic = ConclusionTopic.MEASUREMENT_SYSTEM
+
+    # --- resolution first: a coarse display hides everything else ----------
+    res = result.pct_resolution
+    if res is not None:
+        if res <= t.resolution_ok_pct:
+            concl.append(StatisticalConclusion(
+                "type1_resolution_ok", ConclusionTopic.DISCRIMINATION, Severity.INFO,
+                f"Resolution is {res:.2f}% of the tolerance (<= {t.resolution_ok_pct:g}%).",
+                {"pct_resolution": res}))
+        else:
+            poor = res > t.resolution_max_pct
+            sev = Severity.CRITICAL if poor else Severity.WARNING
+            code = "type1_resolution_poor" if poor else "type1_resolution_marginal"
+            concl.append(StatisticalConclusion(
+                code, ConclusionTopic.DISCRIMINATION, sev,
+                f"Resolution is {res:.2f}% of the tolerance (limit {t.resolution_ok_pct:g}%, "
+                f"absolute maximum {t.resolution_max_pct:g}%).",
+                {"pct_resolution": res}))
+            recs.append(EngineeringRecommendation(
+                "rec_type1_resolution", RecommendationCategory.VERIFY_GAUGE, sev,
+                "Use a gauge with a finer resolution for this tolerance; Cg and Cgk from a coarse "
+                "display do not show the real spread.", code))
+
+    if result.sd == 0.0:
+        concl.append(StatisticalConclusion(
+            "type1_zero_spread", ConclusionTopic.ZERO_VARIATION, Severity.NOTICE,
+            "All readings are identical, so Cg is unbounded. This normally means the resolution is "
+            "too coarse to show the spread of the gauge, not that the gauge is perfect."))
+        recs.append(EngineeringRecommendation(
+            "rec_type1_resolution", RecommendationCategory.VERIFY_GAUGE, Severity.NOTICE,
+            "Confirm the resolution is at most 5% of the tolerance before relying on this study.",
+            "type1_zero_spread"))
+        return InterpretationReport(tuple(concl), tuple(recs),
+                                    "Type-1 study: not assessable (no spread in the readings).")
+
+    # --- indices ------------------------------------------------------------
+    cg_ok = result.cg >= t.index_min
+    cgk_ok = result.cgk >= t.index_min
+    concl.append(StatisticalConclusion(
+        "type1_cg_ok" if cg_ok else "type1_cg_low", topic,
+        Severity.INFO if cg_ok else Severity.CRITICAL,
+        f"Cg = {result.cg:.2f} ({'>=' if cg_ok else '<'} {t.index_min:g}): the repeatability of the "
+        f"gauge uses {result.pct_var_rep:.1f}% of the tolerance (allowed {result.k_percent:g}%).",
+        {"cg": result.cg, "pct_var_rep": result.pct_var_rep}))
+    concl.append(StatisticalConclusion(
+        "type1_cgk_ok" if cgk_ok else "type1_cgk_low", topic,
+        Severity.INFO if cgk_ok else Severity.CRITICAL,
+        f"Cgk = {result.cgk:.2f} ({'>=' if cgk_ok else '<'} {t.index_min:g}), including the bias of "
+        f"{result.bias:+.4g} from the reference value.",
+        {"cgk": result.cgk, "bias": result.bias}))
+
+    if result.bias_significant:
+        concl.append(StatisticalConclusion(
+            "type1_bias_significant", topic, Severity.NOTICE if cgk_ok else Severity.WARNING,
+            f"The bias is statistically significant (t = {result.t_stat:.2f}, p = {result.p_value:.3g}; "
+            f"|bias|/s = {abs(result.bias) / result.sd:.3f} >= {result.bias_criterion:.3f}).",
+            {"t": result.t_stat, "p": result.p_value}))
+    else:
+        concl.append(StatisticalConclusion(
+            "type1_bias_not_significant", topic, Severity.INFO,
+            f"The bias is not statistically significant (p = {result.p_value:.3g}).",
+            {"p": result.p_value}))
+
+    # --- recommendations ----------------------------------------------------
+    if not cg_ok:
+        recs.append(EngineeringRecommendation(
+            "rec_type1_repeatability", RecommendationCategory.IMPROVE_REPEATABILITY, Severity.CRITICAL,
+            "The spread of the gauge is too large for this tolerance: check fixturing and part location, "
+            "cleanliness, temperature, the measuring force and the condition of the gauge, or use a "
+            "more precise gauge.", "type1_cg_low"))
+    elif not cgk_ok:
+        recs.append(EngineeringRecommendation(
+            "rec_type1_bias", RecommendationCategory.VERIFY_GAUGE, Severity.CRITICAL,
+            "The spread is acceptable but the offset from the reference is not: calibrate or adjust the "
+            "zero of the gauge, and check the certificate of the reference part.", "type1_cgk_low"))
+    elif result.bias_significant:
+        recs.append(EngineeringRecommendation(
+            "rec_type1_bias_watch", RecommendationCategory.VERIFY_GAUGE, Severity.NOTICE,
+            "Capable despite a significant bias: consider correcting the offset at the next "
+            "calibration.", "type1_bias_significant"))
+    res_ok = res is None or res <= t.resolution_ok_pct
+    if cg_ok and cgk_ok and res_ok:
+        recs.append(EngineeringRecommendation(
+            "rec_type1_proceed", RecommendationCategory.PROCEED_TO_CAPABILITY, Severity.INFO,
+            "The gauge is capable at this tolerance: continue with the Gage R&R study (operators and "
+            "parts), then the capability study.", "type1_cgk_ok"))
+
+    verdict = "CAPABLE" if cg_ok and cgk_ok and res_ok else "NOT CAPABLE"
+    extra = "; bias significant" if result.bias_significant else ""
+    if res is not None and not res_ok:
+        extra += f"; resolution {res:.1f}% of tolerance"
+    headline = f"Gauge {verdict} (Type-1): Cg = {result.cg:.2f}, Cgk = {result.cgk:.2f}{extra}."
+    return InterpretationReport(tuple(concl), tuple(recs), headline)
