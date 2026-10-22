@@ -77,7 +77,7 @@ class TestRouter:
         assert at.title and "Process Capability" in at.title[0].value
 
 
-@pytest.mark.parametrize("page", ["capability_page.py", "gage_rr_page.py"])
+@pytest.mark.parametrize("page", ["capability_page.py", "gage_rr_page.py", "type1_page.py"])
 def test_pages_do_not_set_page_config(page):
     # Only the router may call st.set_page_config.
     assert "set_page_config" not in (UI / page).read_text(encoding="utf-8")

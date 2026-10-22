@@ -27,12 +27,15 @@ from reportlab.platypus import HRFlowable, PageBreak, Paragraph, SimpleDocTempla
 
 from app.charts.gage_model import build_components_model, build_interaction_model, build_range_model
 from app.charts.gage_render import render_components, render_interaction, render_range_by_operator
+from app.charts.type1_render import render_type1_run_chart
 from app.interpret.models import InterpretationReport
 from app.msa.anova import AnovaResult, AnovaTable
 from app.msa.models import GageRRResult, GageStudy
+from app.msa.type1 import Type1Result
 from app.msa.xbar_r import AverageRangeDetail
 from app.reporting.bundle import ExportMeta
 from app.reporting.gage_report import methodology_rows
+from app.reporting.type1_report import result_rows
 from app.reporting.pdf_report import (
     _BODY,
     _BRAND,
@@ -46,7 +49,7 @@ from app.reporting.pdf_report import (
     _styles,
 )
 
-__all__ = ["gage_rr_pdf_bytes", "pdf_text", "plain_text", "build_document"]
+__all__ = ["gage_rr_pdf_bytes", "type1_pdf_bytes", "pdf_text", "plain_text", "build_document"]
 
 _TITLE = ParagraphStyle("MsaTitle", parent=_styles["Title"], textColor=_BRAND)
 _SUB = ParagraphStyle("MsaSub", parent=_styles["Heading2"], textColor=colors.HexColor("#444444"))
@@ -263,4 +266,59 @@ def gage_rr_pdf_bytes(
         "Columns are operator / trial." if study.n_operators * study.n_trials <= 12 else "One row per reading.",
         _SMALL))
     story.append(_measurement_table(study))
+    return build_document(story, title)
+
+
+# ---------------------------------------------------------------------------
+# Type-1 gauge study
+# ---------------------------------------------------------------------------
+def type1_pdf_bytes(
+    result: Type1Result,
+    interpretation: InterpretationReport,
+    meta: ExportMeta = ExportMeta(),
+    warnings: tuple[str, ...] = (),
+) -> bytes:
+    """Type-1 report: verdict, results, run chart, interpretation, readings."""
+    title = "Type-1 Gauge Study Report"
+    story: list = []
+    key = [
+        ("Readings", result.n),
+        ("Reference value / tolerance", f"{result.reference:.6g} / {result.tolerance:.6g}"),
+        ("Cg", _num(result.cg, 2)),
+        ("Cgk", _num(result.cgk, 2)),
+        ("Bias significant", result.bias_significant),
+        ("Resolution, % of tolerance", None if result.pct_resolution is None else f"{result.pct_resolution:.2f}%"),
+    ]
+    _cover(story, title, meta, key, interpretation, None)
+    for w in warnings:
+        story.append(Spacer(1, 1 * mm))
+        story.append(_pe(f"Data warning: {w}", _SMALL))
+    story.append(PageBreak())
+
+    story.append(_pe("1. Results", _H1))
+    story.append(_kv([(k, v) for k, v in result_rows(result)]))
+    story.append(Spacer(1, 2 * mm))
+    story.append(_pe(
+        f"Cg = (K/100 x T) / (L x s) and Cgk = (K/200 x T - |bias|) / (L/2 x s), with K = "
+        f"{result.k_percent:g}% and L = {result.l_sigma:g}. Both must reach 1.33 (Bosch Booklet 10; "
+        "customers may require more). Formulas and conventions: docs/FORMULAS.md section 7.", _SMALL))
+    story.append(PageBreak())
+
+    story.append(_pe("2. Run chart", _H1))
+    fig = render_type1_run_chart(result, unit=meta.unit)
+    story.append(_chart_image(fig))
+    plt.close(fig)
+    story.append(Spacer(1, 4 * mm))
+
+    _interpretation(story, interpretation, first_no=3)
+    story.append(PageBreak())
+    story.append(_pe("5. Readings", _H1))
+    per_row = 5
+    rows = []
+    for start in range(0, result.n, per_row):
+        chunk = []
+        for i in range(start, min(start + per_row, result.n)):
+            chunk += [i + 1, _num(result.values[i], 6)]
+        rows.append(chunk + [""] * (2 * per_row - len(chunk)))
+    story.append(_grid(["#", "Value"] * per_row, rows, [10, 24] * per_row))
     return build_document(story, title)
