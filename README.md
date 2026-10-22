@@ -10,8 +10,8 @@ page opens on the AIAG reference study and reproduces Minitab's published result
 without any input.
 
 Free, open-source statistics for the three questions a supplier answers before
-shipping a new part: **is the gauge good enough** (Gage R&R), **is the process
-stable** (SPC charts), and **is it capable** (Cp/Cpk vs Pp/Ppk). Every method is
+shipping a new part: **is the gauge good enough** (Type-1 study and Gage R&R),
+**is the process stable** (SPC charts), and **is it capable** (Cp/Cpk vs Pp/Ppk). Every method is
 checked against published results, and every output is a **defensible
 engineering statement**, not just a chart:
 
@@ -25,6 +25,10 @@ production measurement data.
 
 ## Key features
 
+- **Type-1 gauge study (Cg/Cgk):** the Bosch Procedure 1 / VDA 5 study of the
+  gauge alone, with the bias t-test, resolution check, confidence intervals for
+  Cg and Cgk, and the tightest tolerance the gauge can still check. Reproduces
+  the Bosch Booklet 10 worked example, intervals included.
 - **Gage R&R (crossed):** ANOVA (random-effects F tests, interaction pooled at
   p > 0.25 by convention) and the AIAG Average & Range method. Reports EV, AV,
   interaction, GRR, PV, %Contribution, %Study Var, %Tolerance (k = 6 or 5.15) and
@@ -54,8 +58,9 @@ production measurement data.
 - **Reliability guards:** small-sample, few-subgroups, zero-variation,
   non-normality (Shapiro–Wilk + Anderson–Darling), and instability warnings —
   advisory, never suppressing the numbers.
-- **Reporting:** full-precision CSV, 7-sheet Excel workbook, professional PDF
-  report with embedded charts, plus PNG/SVG chart export.
+- **Reporting:** full-precision CSV, Excel workbooks and PDF reports with
+  embedded charts for capability, Type-1 and Gage R&R studies, plus PNG/SVG
+  chart export.
 - **Streamlit UI** with data import (CSV/Excel/manual), cleaning transparency
   (every excluded row listed with its reason), and configurable thresholds.
 
@@ -66,9 +71,16 @@ production measurement data.
 A supplier launching a part for an automotive customer must show, for every
 critical characteristic, that the measurement system is adequate **and** that the
 process is capable. The order matters. A capability study run with an unproven
-gauge measures the gauge as much as the process. The usual bar is a Gage R&R
-under 10% (10-30% only with customer approval) followed by an initial process
-study with Ppk of at least 1.67. Customer-specific requirements take precedence.
+gauge measures the gauge as much as the process. The usual sequence is a Type-1
+study of the gauge on a reference part (Cg and Cgk of at least 1.33, common with
+German customers), a Gage R&R under 10% (10-30% only with customer approval),
+then an initial process study with Ppk of at least 1.67. Customer-specific
+requirements take precedence.
+
+The Type-1 page opens on the Bosch Booklet 10 example: Cg = 2.01 and Cgk = 1.64,
+capable, but with a statistically significant bias (t = -7.82). The tool passes
+the gauge and suggests correcting the offset at the next calibration. It also
+reports that the gauge would still pass down to a tolerance of 0.051.
 
 The AIAG reference study, opened by default on the Gage R&R page, shows what
 the tool does with a gauge that is not ready:
@@ -176,7 +188,11 @@ For a **Gage R&R** study, switch to the *Gage R&R (MSA)* page. Upload a long-for
 file with one row per reading (part, operator, measurement, optional trial),
 choose the method, and optionally enter the tolerance. A missing reading is
 reported by row rather than dropped, because a crossed study must be balanced.
-Results export to CSV and Excel.
+Results export to CSV, Excel and PDF.
+
+The *Type-1 gauge (MSA)* page takes a single column of readings of one
+reference part, plus the reference value, the tolerance and, optionally, the
+resolution. K and L (20% and 6 by default) are in the sidebar.
 
 ## Example
 
@@ -214,6 +230,17 @@ analyses ([`examples/DATASETS.md`](examples/DATASETS.md)):
 The ANOVA is additionally checked against statsmodels on simulated studies, and
 a Monte Carlo test checks that the variance-component estimators are unbiased.
 
+### Type-1 verification against published results
+
+| study | what matches |
+|---|---|
+| Bosch Booklet 10, Procedure 1 worked example (n = 50) | Cg 2.01, Cgk 1.64, both 95% intervals (1.61-2.41, 1.30-1.98), %RE 1.67, "bias significant", T_min(Cgk) 0.050696 |
+| BPI Consulting, Type 1 Gage Study (n = 50) | t 2.185, p 0.0337, Cg 0.343, Cgk 0.240, %Var(Rep+Bias) 83.22 |
+
+Two published figures were computed from rounded intermediates (Bosch's
+T_min(Cg), BPI's %Var(Rep) of 58.2). The tests and
+[`examples/DATASETS.md`](examples/DATASETS.md) record both values.
+
 ### Synthetic rule-engine example
 
 The repository also ships `examples/sample_measurements.csv` (58 observations:
@@ -237,7 +264,7 @@ The chart image above is the actual output for this dataset.
 python -m pytest
 ```
 
-The suite currently contains **890 tests** (all passing, on Python 3.10 / 3.11 / 3.12 in CI), covering:
+The suite currently contains **925 tests** (all passing, on Python 3.10 / 3.11 / 3.12 in CI), covering:
 
 - known-answer verification of every statistic against independently
   hand-computed values (constants are additionally cross-validated against
@@ -250,7 +277,8 @@ The suite currently contains **890 tests** (all passing, on Python 3.10 / 3.11 /
 - chart-model fidelity (rendered values bit-identical to the calculators),
 - interpretation scenarios asserting on structured codes, not prose,
 - full-pipeline integration tests (CSV → analysis → interpretation → CSV/Excel/
-  PDF), with PDF content verified by text extraction,
+  PDF), with PDF content verified by text extraction (all three reports),
+- Type-1 studies against the Bosch Booklet 10 and BPI worked examples,
 - Gage R&R against two published studies (Minitab, SAS, BPI), an independent
   ANOVA implementation (statsmodels, stored as fixtures), a hand-computed study
   and a Monte Carlo unbiasedness check,
@@ -273,6 +301,8 @@ measured.
   conventions** that vary by industry and customer standard; they are
   configurable in the app and are not universal statistical laws.
 - The Cpk confidence interval is a large-sample approximation and is not exact.
+- The Type-1 limits (Cg, Cgk >= 1.33; resolution <= 5% of T) and its K = 20%,
+  L = 6 defaults are Bosch conventions; customers may set others.
 - Gage R&R covers **crossed, balanced studies of variable data** only. Attribute
   agreement, nested designs, linearity and bias studies are not implemented. The
   %GRR bands (10% / 30%) and ndc ≥ 5 are AIAG conventions, configurable in the
@@ -298,6 +328,7 @@ Montgomery, D.C., *Introduction to Statistical Quality Control*, 7th ed.
 Nagaraja, *Order Statistics*, 3rd ed. (Wiley, 2003) · Bissell, A.F., "How
 reliable is your capability index?", *Applied Statistics* 39(3), 1990 · ASTM,
 *Manual on Presentation of Data and Control Chart Analysis* (STP-15D) · AIAG,
-*Measurement Systems Analysis Reference Manual*, 4th ed. (2010) · Burdick,
+*Measurement Systems Analysis Reference Manual*, 4th ed. (2010) · Robert Bosch
+GmbH, *Booklet 10: Capability of Measurement and Test Processes* · Burdick,
 Borror & Montgomery, *Design and Analysis of Gauge R&R Studies* (ASA-SIAM, 2005).
 Per-formula citations: [`docs/FORMULAS.md`](docs/FORMULAS.md).

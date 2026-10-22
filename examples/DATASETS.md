@@ -92,3 +92,38 @@ Unlike the AIAG data, the operator × part interaction is strongly significant
 The two studies together cover both branches of the ANOVA (interaction pooled,
 interaction kept). The readings are reproduced here, with attribution, only to
 verify this implementation.
+
+## type1_bosch.csv — Bosch Booklet 10, Type-1 study (Procedure 1)
+
+50 readings of a setting master: part W450, reference value x_m = 6.002,
+tolerance 0.060, resolution 0.001.
+
+* **Source:** Robert Bosch GmbH,
+  [Booklet 10, "Capability of Measurement and Test Processes"](https://assets.bosch.com/media/global/bosch_group/purchasing_and_logistics/information_for_business_partners/downloads/quality_docs/general_regulations/bosch_publications/booklet-no10-capability-of-measurement-and-test-processes_EN.pdf),
+  worked example of Procedure 1. Readings checked against the PDF's form.
+
+| quantity                 | Bosch          | app            |
+|--------------------------|---------------:|---------------:|
+| mean / s                 | 6.00090 / 0.00099488 | 6.00090 / 0.00099488 |
+| Cg (95% interval)        | 2.01 (1.61-2.41) | 2.01 (1.61-2.41) |
+| Cgk (95% interval)       | 1.64 (1.30-1.98) | 1.64 (1.30-1.98) |
+| %RE                      | 1.67           | 1.67           |
+| bias test                | significant    | significant (t = -7.82) |
+| T_min(Cgk) / T_min(RE)   | 0.050696 / 0.020000 | 0.050696 / 0.020000 |
+| T_min(Cg)                | 0.039701       | 0.039696 (cause of the 0.013% gap not stated) |
+
+## type1_spcforexcel.csv — BPI Consulting Type-1 example
+
+50 readings, reference value 12.306, specification 12.285-12.335 (T = 0.05).
+
+* **Source:** BPI Consulting,
+  [Type 1 Gage Study](https://www.spcforexcel.com/knowledge/measurement-systems-analysis-gage-rr/type-1-gage-study/).
+
+| quantity | published | app |
+|---|---:|---:|
+| mean / s / bias | 12.3075 / 0.00485 / 0.0015 | 12.3075 / 0.00485 / 0.0015 |
+| t / p | 2.185 / 0.0337 | 2.185 / 0.0337 |
+| Cg / Cgk | 0.343 / 0.240 | 0.343 / 0.240 |
+| %Var(Rep) / %Var(Rep+Bias) | 58.2 / 83.22 | 58.25 / 83.22 |
+
+BPI's 58.2 comes from s rounded to 0.00485; the unrounded s gives 58.25.

@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.3.0 (2026-10-23)
+
+### Added
+- **Type-1 gauge study** (Bosch Procedure 1 / VDA 5 Verfahren 1) on its own
+  page: Cg, Cgk, %Var, the bias t-test, resolution as % of tolerance,
+  confidence intervals for Cg and Cgk, and the smallest tolerance the gauge
+  would still pass. Verified against the Bosch Booklet 10 and BPI Consulting
+  worked examples. Methodology: `docs/FORMULAS.md` §7.
+- **PDF reports** for Gage R&R and Type-1 studies (built when the download
+  button is clicked).
+
 ## 0.2.0 (2026-10-13)
 
 ### Added

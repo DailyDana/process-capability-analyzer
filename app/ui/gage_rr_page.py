@@ -29,6 +29,7 @@ from app.msa.interpret import GageThresholds, GrrVerdict, headline_verdict
 from app.msa.models import GageMethod
 from app.reporting.bundle import ExportMeta
 from app.reporting.gage_report import gage_csv_string, gage_workbook_bytes
+from app.reporting.msa_pdf import gage_rr_pdf_bytes
 from app.services.data_loader import load_table
 from app.services.gage_rr import columns_to_request, run_gage_study
 from app.ui.formatting import NA_DISPLAY, fmt_num, severity_icon, with_unit
@@ -289,7 +290,15 @@ with ic2:
 # ===========================================================================
 st.header("5 · Export")
 meta = ExportMeta(unit=unit, source_file=source_name)
-e1, e2, e3 = st.columns(3)
+e0, e1, e2, e3 = st.columns(4)
+e0.download_button(
+    "⬇️ PDF report",
+    # A callable defers the ~1 s build until the button is clicked.
+    data=lambda: gage_rr_pdf_bytes(
+        study, result, rep, meta, outcome.warnings, thresholds.acceptable_max, thresholds.marginal_max
+    ),
+    file_name="gage_rr_report.pdf", mime="application/pdf", width="stretch",
+)
 e1.download_button(
     "⬇️ CSV (full precision)",
     data=gage_csv_string(study, result, rep, meta, outcome.warnings).encode("utf-8"),
