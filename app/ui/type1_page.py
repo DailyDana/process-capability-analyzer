@@ -110,9 +110,10 @@ m1, m2, m3, m4 = st.columns(4)
 m1.metric("Cg", fmt_num(result.cg, 2))
 m2.metric("Cgk", fmt_num(result.cgk, 2))
 m3.metric("Bias", fmt_num(result.bias, 5), help="Mean − reference value")
-m4.metric("Bias p-value", NA_DISPLAY if result.p_value is None else fmt_num(result.p_value, 4))
+m4.metric("Bias p-value", NA_DISPLAY if result.p_value is None
+          else ("< 0.0001" if result.p_value < 1e-4 else fmt_num(result.p_value, 4)))
 st.dataframe(
-    pd.DataFrame([{"Quantity": k, "Value": fmt_num(x, 6) if isinstance(x, float) else ("—" if x is None else str(x))}
+    pd.DataFrame([{"Quantity": k, "Value": f"{x:.6g}" if isinstance(x, float) else ("—" if x is None else str(x))}
                   for k, x in result_rows(result)]),
     width="stretch", hide_index=True, height=420,
 )
