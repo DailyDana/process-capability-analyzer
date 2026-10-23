@@ -115,14 +115,13 @@ m2.metric("Expected PPM", fmt_num(s.ppm_total, 0))
 m3.metric("Observed PPM", fmt_num(s.observed_ppm, 0))
 m4.metric("Ppk if assumed normal", fmt_num(s.normal_ppk, 2), delta=fmt_num(s.normal_ppk - s.ppk, 2),
           delta_color="off")
-left, right = st.columns([3, 2])
-left.dataframe(pd.DataFrame([{"Quantity": k, "Value": f"{v:.6g}" if isinstance(v, float) else ("—" if v is None else str(v))}
+st.dataframe(pd.DataFrame([{"Quantity": k, "Value": f"{v:.6g}" if isinstance(v, float) else ("—" if v is None else str(v))}
                              for k, v in summary_rows(o)]), width="stretch", hide_index=True, height=420)
-right.markdown("**Distribution fits** (lower A² = better)")
-right.dataframe(pd.DataFrame([{"Distribution": d, "Parameters": p, "A²": f"{a:.3f}"} for d, p, a in fit_rows(o)]),
+st.markdown("**Distribution fits** (lower A² = better)")
+st.dataframe(pd.DataFrame([{"Distribution": d, "Parameters": p, "A²": f"{a:.3f}"} for d, p, a in fit_rows(o)]),
                 width="stretch", hide_index=True)
 for d, why in o.skipped.items():
-    right.caption(f"{d.value}: {why}")
+    st.caption(f"{d.value}: {why}")
 
 st.header("3 · Charts")
 normal = fit_distribution(np.asarray(o.values), Distribution.NORMAL, bool(unbias))
