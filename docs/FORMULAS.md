@@ -39,6 +39,10 @@ choice explicitly instead of choosing silently.
   Chart Analysis* (STP-15D).
 - **[AIAG-MSA]** Automotive Industry Action Group (2010). *Measurement Systems
   Analysis Reference Manual*, 4th ed. (Gage R&R, K tables, acceptance bands, ndc.)
+- **[ISO22514-2]** ISO 22514-2, *Statistical methods in process management -- Capability and
+  performance -- Part 2: Process capability and performance of time-dependent process models*.
+  (Percentile method.) Clements, J.A. (1989), "Process capability calculations for non-normal
+  distributions", *Quality Progress* 22(9).
 - **[Bosch10]** Robert Bosch GmbH. *Booklet 10: Capability of Measurement and
   Test Processes* (2019/2020 edition). (Type-1 study, Cg/Cgk, T_min.)
 - **[BBM]** Burdick, R.K., Borror, C.M. & Montgomery, D.C. (2005). *Design and
@@ -1221,6 +1225,122 @@ both:
 - BPI prints %Var(Rep) = 58.2, which it computed from `s` rounded to 0.00485.
   The unrounded `s` gives 58.25.
 
+## 8. Process performance for non-normal data
+
+Implemented in `app/capability/nonnormal.py`, with orchestration in
+`app/services/nonnormal.py` and the interpretation in
+`app/interpret/nonnormal.py`. Verified in `tests/test_nonnormal.py` (§8.6).
+
+### 8.1 Why
+
+Normal-theory Pp/Ppk assume the data are normal. Skewed characteristics do not
+satisfy this: flatness, runout and roughness are bounded at 0, and cycle times
+are skewed to the right. For them the normal model puts probability where the
+process cannot go and misjudges the tail that faces the specification. This
+page reports **overall performance** (Pp/Ppk) only, because a within-subgroup
+sigma has no direct meaning for a fitted distribution.
+
+### 8.2 Percentile method (ISO 22514-2, Clements 1989)
+
+```
+Pp  = (USL - LSL) / (X_99.865 - X_0.135)
+Ppu = (USL - X_50) / (X_99.865 - X_50)
+Ppl = (X_50 - LSL) / (X_50 - X_0.135)
+Ppk = min(Ppu, Ppl)
+```
+
+`X_p` is the fitted distribution's quantile. The probabilities are kept exact,
+`Phi(-3)` and `Phi(+3)`; "0.135 % / 99.865 %" are their rounded forms. With the
+exact values, a normal fit reduces to `6 sigma` and `3 sigma`, and the method
+returns the classic Pp/Ppk exactly. Expected PPM come from the fitted CDF:
+`1e6 * F(LSL)` and `1e6 * (1 - F(USL))`.
+
+**Distributions and fits (exact maximum likelihood):**
+
+| Distribution | Parameters | Fit |
+|---|---|---|
+| normal | mean, sigma | sample mean; sigma per §8.4 |
+| lognormal | mu, sigma of ln x | closed form: mean and population SD of `ln x` |
+| Weibull (2-par.) | shape k, scale | score equation `sum(x^k ln x)/sum(x^k) - 1/k - mean(ln x) = 0` solved to machine precision; `scale = mean(x^k)^(1/k)` |
+| gamma (2-par.) | shape k, scale | `ln k - digamma(k) = ln(mean x) - mean(ln x)`; `scale = mean / k` |
+| exponential | scale | closed form: the mean |
+
+All except the normal require strictly positive data. Unfittable families are
+skipped and listed with the reason. A general-purpose optimiser is not used
+because it stops short. On the reference data scipy's generic Weibull fit is
+0.65 PPM away from the exact (and published) result.
+
+**Ranking.** Fits are ranked by the Anderson-Darling statistic
+`A^2 = -n - (1/n) sum (2i-1)[ln F(x_(i)) + ln(1 - F(x_(n+1-i)))]` against
+the fitted CDF. The ranking compares A^2 values and makes no p-value claim:
+with estimated parameters the null distribution of A^2 depends on the family.
+A best `A^2 > 1.0` is flagged as a poor fit. This is a conservative round
+number; the 5 % critical values for these families are about 0.75-0.8.
+
+### 8.3 Box-Cox transformation
+
+```
+y = (x^lambda - 1) / lambda      (lambda != 0),   y = ln x   (lambda = 0)
+```
+
+lambda comes from maximum likelihood (`scipy.stats.boxcox_normmax`). By
+default it is rounded to the nearest 0.5, as common software does; it can also
+be fixed. The specification limits are transformed the same way, and normal-
+theory indices are computed on the transformed scale (`/(3s)`, `/(6s)`). The
+scaled form `(x^lambda - 1)/lambda` stays increasing for negative lambda, so
+USL and LSL never swap. It differs from `x^lambda` only by a positive affine
+map, which leaves the indices unchanged. The method requires positive data and
+a positive LSL (otherwise treat the LSL as a lower boundary, §8.4).
+
+### 8.4 Convention flags
+
+- **Overall sigma.** The default is `s`, the same convention as Pp/Ppk
+  elsewhere in this tool (§2.3). Minitab's default is `s / c4(n)`. The option
+  "unbias with c4" applies it to the normal model and to Box-Cox. MLE-fitted
+  distributions are not affected. Both published normal-based figures in §8.6
+  use `s / c4`.
+- **Lower boundary.** For a characteristic that cannot fall below a value
+  (typically 0), the LSL can be declared a *natural lower bound*. It is then
+  not used for Ppl, Pp or PPM below, and the assessment is one-sided (upper).
+- **Ppk bands** are the same conventions as §5.2 (1.00 / 1.33 / 1.67).
+
+### 8.5 Interpretation
+
+Codes:
+
+- `nn_model_fit` / `nn_model_boxcox` (the model and its A^2)
+- `nn_not_best_fit` (a named distribution was chosen over a better one)
+- `nn_poor_fit`
+- `nn_lower_boundary`
+- `nn_ppk_{inadequate,marginal,capable,excellent}`, stated with the expected
+  and the observed PPM
+- `nn_normal_misleading` or `nn_normal_close`
+
+`nn_normal_misleading` fires when normal-theory Ppk differs by at least 10 %
+or its PPM by a factor of 2 or more. It gives both sets of numbers, because
+that comparison is the reason to use this page. Recommendations:
+`rec_nn_improve`, `rec_nn_check_fit` (look for a mixture of processes before
+trusting any single distribution), `rec_nn_more_data` (fewer than 100
+observations) and `rec_nn_maintain`.
+
+### 8.6 Verification
+
+| Check | Result |
+|---|---|
+| iSixSigma cycle-time study (n = 207, USL 30, lower bound 0): Weibull | 233244.81 PPM (published 233244.81) |
+| same, normal with lower bound, `s / c4` | 249535.66 PPM (published 249535.66) |
+| same, Box-Cox lambda = 0.5, `s / c4` | 227113.29 PPM (published 227113.29); MLE lambda 0.5064 rounds to the published 0.5 |
+| data transcription | n, mean and SD equal the source's own summary table (207, 21.787, 12.135) |
+| exact MLE | closed forms; Weibull and gamma score equations hold to 1e-10 |
+| consistency | percentile method on a normal fit = classic Pp/Ppk (rel. 1e-9); lognormal quantiles = `exp(mu + sigma z)` |
+| Monte Carlo | Weibull(k = 2), n = 50 000: estimated Ppu within 1 % of the true value |
+| Anderson-Darling | equals `scipy.stats.anderson` for the normal case |
+
+**One published figure is not matched.** The source's unbounded-normal total
+is 286011.34 PPM, while `s / c4` gives 286001.33. The upper tail alone
+matches exactly, so the 10 PPM gap is in the lower tail. The source figure
+that would explain it could not be read.
+
 ---
 
 ## Document status
@@ -1228,7 +1348,6 @@ both:
 This reference is complete for the released version. The PDF report's Technical
 Appendix cites this document as the controlled methodology source; the PDF and
 the UI never restate formulas independently. Any future statistical addition
-(e.g. non-normal capability methods, variable-limit charts, further MSA
-studies) must be documented
+(e.g. variable-limit charts, further MSA studies) must be documented
 here **before** implementation, following the same formula / assumptions /
 convention-flag / reference format.

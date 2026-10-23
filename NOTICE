@@ -29,3 +29,7 @@ Processes". examples/type1_spcforexcel.csv contains the readings of BPI
 Consulting's "Type 1 Gage Study" example (SPC for Excel). Both are included,
 with attribution, as reference data for verification, not as part of the
 licensed software.
+
+examples/nonnormal_cycle_time.csv contains the 207 cycle times of iSixSigma,
+"Are You Sure Your Data Is Normal?" (Table 1), included with attribution as
+reference data for verification, not as part of the licensed software.

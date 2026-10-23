@@ -127,3 +127,21 @@ tolerance 0.060, resolution 0.001.
 | %Var(Rep) / %Var(Rep+Bias) | 58.2 / 83.22 | 58.25 / 83.22 |
 
 BPI's 58.2 comes from s rounded to 0.00485; the unrounded s gives 58.25.
+
+## nonnormal_cycle_time.csv — iSixSigma cycle-time study
+
+207 order cycle times in days; upper limit 30 days, natural lower bound 0.
+
+* **Source:** iSixSigma, ["Are You Sure Your Data Is Normal?"](https://www.isixsigma.com/normality/are-you-sure-your-data-normal/),
+  Table 1. Read from the page's HTML table. The source's own summary
+  (Table 5: N 207, mean 21.787, StDev 12.135) matches the transcription.
+
+| model | published PPM | app |
+|---|---:|---:|
+| Weibull, lower bound 0 | 233244.81 | 233244.81 |
+| normal, lower bound 0 (s / c4) | 249535.66 | 249535.66 |
+| Box-Cox, lambda 0.5 (s / c4) | 227113.29 | 227113.29 |
+| normal, unbounded (s / c4) | 286011.34 | 286001.33 (lower tail differs by 10 PPM; unexplained) |
+
+The published normal-based figures use `s / c4` (Minitab's default
+unbiasing); the app's default is `s`, with `s / c4` as an option.
