@@ -11,7 +11,8 @@ without any input.
 
 Free, open-source statistics for the three questions a supplier answers before
 shipping a new part: **is the gauge good enough** (Type-1 study and Gage R&R),
-**is the process stable** (SPC charts), and **is it capable** (Cp/Cpk vs Pp/Ppk). Every method is
+**is the process stable** (SPC charts), and **is it capable** (Cp/Cpk vs Pp/Ppk,
+also for non-normal data). Every method is
 checked against published results, and every output is a **defensible
 engineering statement**, not just a chart:
 
@@ -48,6 +49,11 @@ production measurement data.
 - **Stability before capability:** SPC rules are evaluated first, and every
   capability result carries the stability verdict. A high Cpk on an unstable
   process is explicitly caveated, never silently reported as "capable".
+- **Non-normal capability:** Pp/Ppk by the ISO 22514-2 percentile method on
+  exact maximum-likelihood fits (normal, lognormal, Weibull, gamma,
+  exponential) ranked by Anderson-Darling, or by Box-Cox, with a natural lower
+  bound option and the normal-theory result shown alongside. Reproduces a
+  published cycle-time study to the printed decimal.
 - **Sigma level / DPMO** (Z-bench from the normal model; the 1.5σ shift is an
   opt-in, clearly-labeled convention).
 - **Cpk confidence interval** (Bissell 1990 / Montgomery approximation, flagged
@@ -241,6 +247,16 @@ Two published figures were computed from rounded intermediates (Bosch's
 T_min(Cg), BPI's %Var(Rep) of 58.2). The tests and
 [`examples/DATASETS.md`](examples/DATASETS.md) record both values.
 
+### Non-normal verification against published results
+
+`examples/nonnormal_cycle_time.csv` is the 207-order cycle-time study from
+iSixSigma (upper limit 30 days, lower bound 0). The published Weibull
+(233244.81 PPM), bounded-normal (249535.66) and Box-Cox (227113.29) results
+are reproduced exactly. The last two use `s / c4`, which the source software
+applies by default; here it is an option. The one figure not matched (the
+unbounded-normal total, 10 PPM apart) is recorded in
+[`examples/DATASETS.md`](examples/DATASETS.md).
+
 ### Synthetic rule-engine example
 
 The repository also ships `examples/sample_measurements.csv` (58 observations:
@@ -264,7 +280,7 @@ The chart image above is the actual output for this dataset.
 python -m pytest
 ```
 
-The suite currently contains **925 tests** (all passing, on Python 3.10 / 3.11 / 3.12 in CI), covering:
+The suite currently contains **961 tests** (all passing, on Python 3.10 / 3.11 / 3.12 in CI), covering:
 
 - known-answer verification of every statistic against independently
   hand-computed values (constants are additionally cross-validated against
@@ -279,6 +295,8 @@ The suite currently contains **925 tests** (all passing, on Python 3.10 / 3.11 /
 - full-pipeline integration tests (CSV → analysis → interpretation → CSV/Excel/
   PDF), with PDF content verified by text extraction (all three reports),
 - Type-1 studies against the Bosch Booklet 10 and BPI worked examples,
+- non-normal capability against a published study, exact maximum-likelihood
+  conditions, analytic quantiles and a Monte Carlo convergence check,
 - Gage R&R against two published studies (Minitab, SAS, BPI), an independent
   ANOVA implementation (statsmodels, stored as fixtures), a hand-computed study
   and a Monte Carlo unbiasedness check,
@@ -301,6 +319,10 @@ measured.
   conventions** that vary by industry and customer standard; they are
   configurable in the app and are not universal statistical laws.
 - The Cpk confidence interval is a large-sample approximation and is not exact.
+- Non-normal Ppk rests on the fitted model's 0.135 % and 99.865 % tails: with
+  fewer than about 100 observations those are mostly extrapolation, and a poor
+  fit (or a mixture of processes) makes them unreliable. The page warns in both
+  cases. Johnson transformations are not implemented.
 - The Type-1 limits (Cg, Cgk >= 1.33; resolution <= 5% of T) and its K = 20%,
   L = 6 defaults are Bosch conventions; customers may set others.
 - Gage R&R covers **crossed, balanced studies of variable data** only. Attribute
@@ -327,7 +349,9 @@ Montgomery, D.C., *Introduction to Statistical Quality Control*, 7th ed.
 (2005) · NIST/SEMATECH *e-Handbook of Statistical Methods*, §6 · David &
 Nagaraja, *Order Statistics*, 3rd ed. (Wiley, 2003) · Bissell, A.F., "How
 reliable is your capability index?", *Applied Statistics* 39(3), 1990 · ASTM,
-*Manual on Presentation of Data and Control Chart Analysis* (STP-15D) · AIAG,
+*Manual on Presentation of Data and Control Chart Analysis* (STP-15D) · ISO
+22514-2 · Clements, "Process capability calculations for non-normal
+distributions", *Quality Progress* 22(9), 1989 · AIAG,
 *Measurement Systems Analysis Reference Manual*, 4th ed. (2010) · Robert Bosch
 GmbH, *Booklet 10: Capability of Measurement and Test Processes* · Burdick,
 Borror & Montgomery, *Design and Analysis of Gauge R&R Studies* (ASA-SIAM, 2005).

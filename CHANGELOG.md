@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.4.0 (2026-10-23)
+
+### Added
+- **Capability for non-normal data** on its own page: percentile method
+  (ISO 22514-2) on normal, lognormal, Weibull, gamma and exponential fits
+  ranked by Anderson-Darling, or a Box-Cox transformation; expected and
+  observed PPM; a natural lower bound in place of the LSL; the normal-theory
+  result shown alongside. Exact maximum-likelihood fits. Reproduces the three
+  model results of a published cycle-time study to the printed decimal.
+  Methodology: `docs/FORMULAS.md` §8.
+
 ## 0.3.0 (2026-10-23)
 
 ### Added
