@@ -21,6 +21,7 @@ from playwright.sync_api import Page, TimeoutError as PlaywrightTimeout, sync_pl
 DEFAULT_URLS = (
     "https://spc-analyzer.streamlit.app/",
     "https://fiber-composite-calculator.streamlit.app/",
+    "https://hoffmann-line-balancing.streamlit.app/",
 )
 WAKE_BUTTON = "Yes, get this app back up"
 APP_SELECTOR = '[data-testid="stAppViewContainer"]'
