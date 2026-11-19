@@ -1,0 +1,36 @@
+name: Keep demos awake
+
+# Streamlit Community Cloud sleeps an app that has had no visitors for a while.
+# This visits the hosted demos with a real browser a few times a day.
+# Note: GitHub pauses scheduled workflows after 60 days without a commit to
+# the repository; re-enable it from the Actions tab if that happens.
+
+on:
+  schedule:
+    - cron: "17 */5 * * *"
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: keep-awake
+  cancel-in-progress: true
+
+jobs:
+  visit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: tools/keep_awake.py
+          sparse-checkout-cone-mode: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install Playwright
+        run: |
+          pip install playwright
+          playwright install --with-deps chromium
+      - name: Visit the demos
+        run: python tools/keep_awake.py
