@@ -27,6 +27,7 @@ from app.services.analysis import (
     run_analysis,
 )
 from app.services.data_loader import build_subgroups, clean_column, load_table
+from app.spc.phases import FrozenLimits
 from app.spc.rules import RuleSet
 
 
@@ -735,6 +736,7 @@ class TestSignatureCompleteness:
         "values", "chart_kind", "subgroup_size", "spec", "unit", "rule_set",
         "within_estimator", "ci_alpha", "time_ordered", "original_indices",
         "guard_thresholds", "interp_thresholds",
+        "n_baseline", "excluded", "frozen_limits",
     }
 
     def test_no_unreviewed_request_fields(self) -> None:
@@ -806,6 +808,9 @@ class TestSignatureCompleteness:
             ("time_ordered", False),
             ("interp_thresholds", InterpretationThresholds(capable_min=1.5)),
             ("original_indices", (0, 1, 2, 3, 4, 7)),
+            ("n_baseline", 2),
+            ("excluded", ((1, "tool change"),)),
+            ("frozen_limits", FrozenLimits("xbar_r", 3, 10.0, 12.0, 8.0, 1.0, 2.5, 0.0)),
         ],
     )
     def test_each_input_changes_the_signature(self, field, value) -> None:

@@ -39,6 +39,7 @@ from app.services.analysis import (
     run_analysis,
 )
 from app.services.data_loader import clean_column, load_table
+from app.spc.phases import FrozenLimits
 from app.spc.rules import RuleSet
 from app.statistics.variation import WithinEstimator
 from app.ui.formatting import NA_DISPLAY, fmt_index, fmt_num, severity_icon, with_unit
@@ -53,6 +54,11 @@ RULESET_LABELS = {
     "Western Electric (4 rules)": RuleSet.WECO,
     "Both (distinct IDs)": RuleSet.ALL,
 }
+LIMITS_ALL = "All the data"
+LIMITS_BASELINE = "A baseline period (Phase I)"
+LIMITS_IMPORTED = "Imported limits (Phase II)"
+LIMIT_SOURCES = [LIMITS_ALL, LIMITS_BASELINE, LIMITS_IMPORTED]
+
 ESTIMATOR_LABELS = {
     "Auto (R̄/d₂, S̄/c₄ for n ≥ 9)": WithinEstimator.AUTO,
     "R̄ / d₂ (average range)": WithinEstimator.RBAR_D2,
@@ -80,7 +86,8 @@ def _init_state() -> None:
 
 
 def _signature(values, chart_kind, subgroup_size, spec, rule_set, estimator, unit,
-               time_ordered, interp_thresholds, original_indices=None):
+               time_ordered, interp_thresholds, original_indices=None,
+               n_baseline=None, excluded=(), frozen_limits=None):
     """Identity of the inputs an analysis depends on (detects staleness).
 
     MUST cover every ``AnalysisRequest`` field that can change
@@ -107,6 +114,9 @@ def _signature(values, chart_kind, subgroup_size, spec, rule_set, estimator, uni
         # is covered here automatically.
         dataclasses.astuple(interp_thresholds),
         tuple(original_indices) if original_indices is not None else None,
+        n_baseline,
+        tuple(excluded),
+        None if frozen_limits is None else dataclasses.astuple(frozen_limits),
     )
 
 
@@ -389,6 +399,45 @@ with st.sidebar:
     est_label = st.selectbox("Within-σ estimator", list(ESTIMATOR_LABELS.keys()))
     estimator = ESTIMATOR_LABELS[est_label]
 
+    # --- Phase I / Phase II: where the control limits come from ---
+    n_points = len(values) if chart_kind is ChartKind.IMR else len(values) // int(subgroup_size)
+    point_name = "reading" if chart_kind is ChartKind.IMR else "subgroup"
+    limits_source = st.radio(
+        "Control limits from", LIMIT_SOURCES, key="limits_source",
+        help=(
+            "Phase I: set the limits from a stable reference period, leaving out points with a "
+            "known assignable cause. Phase II: judge new data against limits frozen earlier "
+            "(download them under Export, upload them here in a later session)."
+        ),
+    )
+    n_baseline = None
+    excluded: tuple[tuple[int, str], ...] = ()
+    frozen_limits = None
+    if limits_source == LIMITS_BASELINE and n_points >= 2:
+        n_baseline = int(st.number_input(
+            f"Baseline: first N {point_name}s", min_value=2, max_value=n_points,
+            value=n_points, step=1, key=f"n_baseline_{chart_kind.value}_{int(subgroup_size)}",
+        ))
+        picked = st.multiselect(
+            f"Leave out of the limits ({point_name} number)", list(range(1, n_baseline + 1)),
+            key="baseline_excluded",
+            help="Still charted and still flagged; only the limits ignore it. Give the assignable cause below.",
+        )
+        excluded = tuple(
+            (int(pos), st.text_input(f"Reason for {point_name} {pos}", key=f"excl_reason_{pos}",
+                                     placeholder="assignable cause"))
+            for pos in sorted(picked)
+        )
+    elif limits_source == LIMITS_IMPORTED:
+        limits_file = st.file_uploader("Frozen limits (CSV)", type=["csv"], key="limits_file")
+        if limits_file is not None:
+            try:
+                frozen_limits = FrozenLimits.from_csv(limits_file.getvalue().decode("utf-8-sig"))
+            except (ValueError, UnicodeDecodeError) as exc:
+                st.error(f"**Limits file not usable:** {exc}")
+        if frozen_limits is None:
+            st.caption("No limits loaded yet: the limits below come from all the data.")
+
     st.divider()
     time_ordered = st.checkbox(
         "Measurements are in production/time order",
@@ -481,7 +530,7 @@ except ValueError as exc:
 # --- Run analysis (with staleness detection) ---
 sig = _signature(values, chart_kind, subgroup_size, spec, rule_set, estimator,
                  unit or None, time_ordered, interp_thresholds,
-                 tuple(cleaning.used_indices))
+                 tuple(cleaning.used_indices), n_baseline, excluded, frozen_limits)
 if sig != st.session_state.last_signature:
     st.session_state.outcome = run_analysis(
         AnalysisRequest(
@@ -495,6 +544,9 @@ if sig != st.session_state.last_signature:
             time_ordered=time_ordered,
             original_indices=tuple(cleaning.used_indices),
             interp_thresholds=interp_thresholds,
+            n_baseline=n_baseline,
+            excluded=excluded,
+            frozen_limits=frozen_limits,
         )
     )
     st.session_state.last_signature = sig
@@ -539,6 +591,16 @@ st.header("5 · SPC Analysis")
 
 models = outcome.chart_models
 loc, disp = models.location, models.dispersion
+
+ph = outcome.phase
+if ph is not None and ph.mode != "all":
+    origin = ("imported limits" if ph.mode == "imported"
+              else f"limits from {ph.n_baseline} baseline point(s)")
+    st.info(
+        f"**Phase II view** — {origin}, applied to {ph.n_points} point(s). "
+        + ("" if ph.mode == "imported" else f"Signals inside the baseline: **{ph.signals_in_baseline}**. ")
+        + f"Signals after it: **{ph.signals_after_baseline}**."
+    )
 
 ac = outcome.autocorrelation
 if ac is not None and ac.r1 is not None:
@@ -802,6 +864,7 @@ else:
             exclusion_notes=tuple(
                 f"Row {r.original_index}: {r.reason}" for r in cleaning.excluded
             ),
+            control_limits=outcome.phase.describe() if outcome.phase else None,
         ),
     )
     e1, e2, e3 = st.columns(3)
@@ -825,6 +888,16 @@ else:
         file_name="spc_report.pdf",
         mime="application/pdf",
         width="stretch",
+    )
+
+if outcome.limits is not None:
+    st.subheader("Control limits")
+    st.download_button(
+        "⬇️ Download these control limits (CSV)",
+        data=outcome.limits.to_csv().encode("utf-8"),
+        file_name="control_limits.csv",
+        mime="text/csv",
+        help="Freeze the limits: upload this file later under 'Control limits from' to judge new data against them.",
     )
 
 st.subheader("Chart images")

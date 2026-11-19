@@ -23,6 +23,7 @@ import numpy as np
 
 from app.capability.guards import GuardThresholds, NormalityResult, assess_normality
 from app.interpret.autocorrelation import autocorrelation_findings
+from app.spc.phases import FrozenLimits, apply_limits, baseline_mask, estimate_limits
 from app.statistics.autocorrelation import AutocorrelationResult, lag1_autocorrelation
 from app.capability.report import CapabilityReport, StabilitySummary, build_capability_report
 from app.charts.model import ChartPairModel, build_pair_model
@@ -118,6 +119,41 @@ class AnalysisRequest:
     interp_thresholds: InterpretationThresholds = field(
         default_factory=InterpretationThresholds
     )
+    # Phase I / Phase II (app.spc.phases). ``n_baseline``: estimate the control
+    # limits from the first that many chart points (subgroups, or readings for
+    # I-MR). ``excluded``: (1-based chart point, reason) pairs left out of the
+    # estimate. ``frozen_limits``: use these limits and estimate nothing.
+    n_baseline: Optional[int] = None
+    excluded: tuple[tuple[int, str], ...] = ()
+    frozen_limits: Optional[FrozenLimits] = None
+
+
+@dataclass(frozen=True, slots=True)
+class PhaseSummary:
+    """Where the control limits came from and where the signals fell.
+
+    ``mode`` is ``"all"`` (limits from every point), ``"baseline"`` (from a
+    reference period) or ``"imported"`` (frozen limits supplied).
+    """
+
+    mode: str
+    n_points: int
+    n_baseline: int
+    excluded: tuple[tuple[int, str], ...]
+    signals_in_baseline: int
+    signals_after_baseline: int
+
+    def describe(self) -> Optional[str]:
+        """One line for the report's methodology table; ``None`` for the default."""
+        if self.mode == "all":
+            return None
+        if self.mode == "imported":
+            return "imported (frozen), nothing re-estimated from these data"
+        text = f"estimated from {self.n_baseline} baseline point(s), applied to all {self.n_points}"
+        if self.excluded:
+            left_out = "; ".join(f"{pos} ({reason.strip() or 'no reason recorded'})" for pos, reason in self.excluded)
+            text += f"; left out of the baseline: {left_out}"
+        return text
 
 
 @dataclass(frozen=True, slots=True)
@@ -150,6 +186,8 @@ class AnalysisOutcome:
     subgroup_size: Optional[int] = None
     n_used: int = 0
     data_regime: Optional[DataRegime] = None
+    limits: Optional[FrozenLimits] = None
+    phase: Optional[PhaseSummary] = None
 
     @property
     def all_violations(self) -> tuple:
@@ -279,6 +317,42 @@ def run_analysis(request: AnalysisRequest) -> AnalysisOutcome:
     # downstream consumer that already reads `point_indices` (rules._orig,
     # ChartModel.original_index, all three exporters, the UI) reports genuine
     # ORIGINAL row indices with no further changes.
+    # --- Phase I / Phase II: where the limits come from -----------------------
+    kind = request.chart_kind.value
+    chart_data = values if request.chart_kind is ChartKind.IMR else list(sg.subgroups)
+    n_points = len(chart_data)
+    point_name = "reading" if request.chart_kind is ChartKind.IMR else "subgroup"
+    try:
+        if request.frozen_limits is not None:
+            limits = request.frozen_limits
+            mode = "imported"
+            base = np.zeros(n_points, dtype=bool)
+            chart_pair = apply_limits(kind, chart_data, limits)
+        else:
+            base = baseline_mask(n_points, request.n_baseline, [pos - 1 for pos, _ in request.excluded])
+            limits = estimate_limits(kind, chart_data, base)
+            mode = "all" if base.all() else "baseline"
+            if mode == "baseline":
+                chart_pair = apply_limits(kind, chart_data, limits)
+    except ValueError as exc:
+        return _fail(str(exc))
+    last_base = int(np.nonzero(base)[0].max()) if base.any() else -1
+    if mode == "imported":
+        origin = f" (set from {limits.n_baseline} {point_name}s)" if limits.n_baseline else ""
+        warnings.append(
+            f"Control limits were imported{origin} and applied to these data; nothing was re-estimated."
+        )
+    elif mode == "baseline":
+        warnings.append(
+            f"Control limits were estimated from {int(base.sum())} {point_name}(s) among the first "
+            f"{last_base + 1} (Phase I) and applied to all {n_points}."
+        )
+        for pos, reason in request.excluded:
+            warnings.append(
+                f"{point_name.capitalize()} {pos} left out of the control limits. "
+                f"Reason: {reason.strip() or 'none recorded'}."
+            )
+
     if request.original_indices is not None:
         chart_pair = _remap_to_original_indices(
             chart_pair,
@@ -291,6 +365,26 @@ def run_analysis(request: AnalysisRequest) -> AnalysisOutcome:
     location_eval = evaluate_rules(chart_pair.location, rule_set=request.rule_set)
     dispersion_eval = evaluate_rules(chart_pair.dispersion, rule_set=request.rule_set)
     stability = stability_from_chart_pair(chart_pair, rule_set=request.rule_set)
+
+    # Split the signals by where they fall. A dispersion-chart point of the
+    # I-MR pair sits at the second reading of its moving range.
+    in_base = after_base = 0
+    for chart, evaluation in ((chart_pair.location, location_eval), (chart_pair.dispersion, dispersion_eval)):
+        position = {int(orig): p for p, orig in enumerate(chart.point_indices)}
+        offset = n_points - chart.n_points  # 1 for the MR chart, else 0
+        for v in evaluation.violations:
+            first = min(position[i] for i in v.indices) + offset
+            last = max(position[i] for i in v.indices) + offset
+            if mode != "imported" and first <= last_base:
+                in_base += 1
+            if mode == "imported" or last > last_base:
+                after_base += 1
+    phase = PhaseSummary(mode, n_points, int(base.sum()), tuple(request.excluded), in_base, after_base)
+    if mode == "baseline" and in_base:
+        warnings.append(
+            f"The baseline is not stable yet: {in_base} signal(s) fall within it. Find the cause, leave "
+            f"those {point_name}s out with the reason, and recompute until the baseline shows no signal."
+        )
 
     # --- Chart models for rendering (M4) ---
     chart_models = build_pair_model(
@@ -408,4 +502,6 @@ def run_analysis(request: AnalysisRequest) -> AnalysisOutcome:
         subgroup_size=subgroup_size,
         n_used=n_used,
         data_regime=regime,
+        limits=limits,
+        phase=phase,
     )

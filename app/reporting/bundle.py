@@ -35,6 +35,7 @@ class MethodologyInfo:
     n_used: Optional[int] = None
     n_excluded: Optional[int] = None
     exclusion_notes: tuple[str, ...] = field(default_factory=tuple)
+    control_limits: Optional[str] = None       # where the limits came from, when not from all the data
 
     def as_rows(self) -> list[tuple[str, object]]:
         """Return (label, value) rows for tabular display, omitting None."""
@@ -45,6 +46,7 @@ class MethodologyInfo:
             ("Number of subgroups", self.n_subgroups),
             ("Within-sigma estimator", self.within_estimator),
             ("SPC rule set", self.rule_set),
+            ("Control limits", self.control_limits),
             ("Input rows", self.n_input_rows),
             ("Observations used", self.n_used),
             ("Observations excluded", self.n_excluded),
