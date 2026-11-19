@@ -30,6 +30,7 @@ page = st.navigation(
     [
         st.Page(_HERE / "capability_page.py", title="Process capability (SPC)", icon="📐", default=True),
         st.Page(_HERE / "nonnormal_page.py", title="Capability, non-normal", icon="📈", url_path="non-normal"),
+        st.Page(_HERE / "attribute_page.py", title="Attribute charts (p, np, c, u)", icon="🔢", url_path="attribute"),
         st.Page(_HERE / "type1_page.py", title="Type-1 gauge (MSA)", icon="🎯", url_path="type-1"),
         st.Page(_HERE / "gage_rr_page.py", title="Gage R&R (MSA)", icon="📏", url_path="gage-rr"),
     ]
