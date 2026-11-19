@@ -2,7 +2,7 @@
 
 Control limits for individuals assume independent observations. The lag-1
 sample autocorrelation coefficient measures how far that holds
-(``docs/FORMULAS.md`` §3.9)::
+(``docs/FORMULAS.md`` §3.10)::
 
     r1 = sum_{i=1}^{n-1} (x_i - xbar)(x_{i+1} - xbar) / sum_{i=1}^{n} (x_i - xbar)^2
 

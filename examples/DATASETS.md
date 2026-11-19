@@ -145,3 +145,37 @@ BPI's 58.2 comes from s rounded to 0.00485; the unrounded s gives 58.25.
 
 The published normal-based figures use `s / c4` (Minitab's default
 unbiasing); the app's default is `s`, with `s / c4` as an option.
+
+## attribute_orangejuice.csv, attribute_circuit.csv, attribute_pcmanufact.csv, attribute_dyedcloth.csv — attribute charts
+
+Count data from Montgomery, *Introduction to Statistical Quality Control*, as
+distributed in the R package `qcc` (Luca Scrucca) under the names
+`orangejuice`, `circuit`, `pcmanufact` and `dyedcloth`.
+
+* **Source:** the `.rda` files in the `data/` folder of
+  https://github.com/luca-scr/qcc, converted to CSV without changes. The
+  `trial` column marks the preliminary samples.
+* **Published limits:** the output printed in the package documentation,
+  https://luca-scr.github.io/qcc/articles/qcc.html.
+
+| data | chart | published CL / LCL / UCL | app |
+|---|---|---|---|
+| orange juice (nonconforming cans in samples of 50), samples 1–30 | p | 0.2313333 / 0.05242755 / 0.4102391 | same |
+| same | np | 11.56667 / 2.621377 / 20.51196 | same |
+| orange juice, samples 15 and 23 removed | p | 0.215 / 0.04070284 / 0.3892972 | same |
+| circuit boards (nonconformities per 100 boards), samples 1–26 | c | 19.84615 / 6.481447 / 33.21086 | same |
+| circuit boards, samples 6 and 20 removed | c | 19.66667 / 6.362532 / 32.9708 | same |
+| same | u | 0.1966667 / 0.06362532 / 0.329708 | same |
+| personal computers (nonconformities per 5 units) | u | 1.93 / 0.06613305 / 3.793867 | same |
+
+"Same" means equal to the digits printed. For `dyedcloth` (defects per 50 m²,
+rolls of different size) the documentation prints no limits; the app's
+per-sample limits are checked against the formula with `ubar = 153 / 107.5`.
+
+## tests/fixtures/nist_strd — NIST Statistical Reference Datasets
+
+The nine univariate datasets (PiDigits, Lottery, Lew, Mavro, Michelso,
+NumAcc1–4) from https://www.itl.nist.gov/div898/strd/univ/homepage.html, as
+downloaded. Each file's header carries the certified mean, standard deviation
+and lag-1 autocorrelation, which the tests read from the file itself. Works
+of the US government, not subject to copyright in the United States.

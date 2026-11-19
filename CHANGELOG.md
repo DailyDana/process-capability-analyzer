@@ -1,6 +1,23 @@
 # Changelog
 
-## Unreleased
+## 0.5.0 (2026-11-20)
+
+### Added
+- **Attribute control charts** (p, np, c, u) on their own page: limits per
+  sample for varying sample sizes, a baseline period or a known standard, the
+  run rules that do not rely on normal zones, interpretation and CSV export.
+  Reproduces the limits printed in the `qcc` documentation for four of
+  Montgomery's datasets. Methodology: `docs/FORMULAS.md` §9.
+- **Phase I / Phase II control limits**: limits from a baseline period, points
+  left out with a recorded reason, later data judged against them, and frozen
+  limits exported to and imported from CSV (§3.11).
+- **Lag-1 autocorrelation check** before the I-MR chart, with an approximate
+  significance test, a conclusion and a recommendation (§3.10).
+- **Show your work**: formula, numbers and source for every capability index
+  and Gage R&R quantity, in the UI and as an appendix of both PDF reports (§10).
+- NIST StRD univariate datasets in the test suite (mean, standard deviation,
+  lag-1 autocorrelation against certified values).
+- A scheduled workflow that visits the hosted demos so they stay awake.
 
 ### Fixed
 - Non-normal capability: identical measurements now give a plain error instead of an

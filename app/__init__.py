@@ -13,4 +13,4 @@ The core domain (``data``, ``statistics``, ``spc``, ``capability``,
 ``interpret``) is pure and I/O-free so it stays fully unit-testable.
 """
 
-__version__ = "0.4.0"  # keep in step with pyproject.toml (a test checks it)
+__version__ = "0.5.0"  # keep in step with pyproject.toml (a test checks it)

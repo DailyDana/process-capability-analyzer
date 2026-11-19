@@ -11,8 +11,8 @@ without any input.
 
 Free, open-source statistics for the three questions a supplier answers before
 shipping a new part: **is the gauge good enough** (Type-1 study and Gage R&R),
-**is the process stable** (SPC charts), and **is it capable** (Cp/Cpk vs Pp/Ppk,
-also for non-normal data). Every method is
+**is the process stable** (SPC charts for measurements and for counts), and
+**is it capable** (Cp/Cpk vs Pp/Ppk, also for non-normal data). Every method is
 checked against published results, and every output is a **defensible
 engineering statement**, not just a chart:
 
@@ -38,6 +38,17 @@ production measurement data.
   two reference studies.
 - **Control charts:** X̄–R, X̄–S, and I–MR with proper 3σ limits from the
   published control-chart constants (never plain ±3·stdev of the plotted data).
+- **Attribute charts:** p, np, c and u for counted data, with limits per
+  sample when the sample size varies. Reproduces the limits printed for four
+  textbook datasets.
+- **Phase I / Phase II:** set the limits from a stable baseline period, leave
+  out points with a recorded assignable cause, judge later data against them,
+  and export the frozen limits to reuse in a later session.
+- **Independence check:** lag-1 autocorrelation before the I–MR chart, with a
+  warning when consecutive readings are correlated (limits too narrow).
+- **Show your work:** every capability index and Gage R&R quantity can be
+  expanded into its formula, the numbers filled in and the source; the same
+  table closes the PDF reports.
 - **Run-rule engine:** full **Western Electric** (4 rules) and **Nelson**
   (8 rules) sets, kept distinct (WE4 = 8-in-a-row ≠ Nelson N2 = 9-in-a-row),
   with structured violations: rule ID, name, affected observations, direction,
@@ -219,8 +230,29 @@ on this implementation. Analyzed as X-bar/R with subgroup size 5:
 
 Phase I (samples 1-25) is reported stable with no rule violations, Cp 1.70 /
 Cpk 1.66; including the Phase II samples the drift is caught as N1/N5/N6 and the
-capability verdict is caveated accordingly. See
-[`examples/DATASETS.md`](examples/DATASETS.md).
+capability verdict is caveated accordingly. With samples 1-25 set as the
+baseline, the frozen limits flag samples 37-39 and nothing in the baseline.
+See [`examples/DATASETS.md`](examples/DATASETS.md).
+
+### Attribute-chart verification against published results
+
+Four of Montgomery's count datasets, as shipped with the R package `qcc`
+(`examples/attribute_*.csv`). The limits printed in the `qcc` documentation
+are reproduced to the 7 digits printed, and the same samples are flagged:
+
+| data | chart | published CL / LCL / UCL |
+|---|---|---|
+| orange juice cans, samples 1-30 | p | 0.2313333 / 0.05242755 / 0.4102391 |
+| same, samples 15 and 23 removed | p | 0.215 / 0.04070284 / 0.3892972 |
+| circuit boards, samples 1-26 | c | 19.84615 / 6.481447 / 33.21086 |
+| personal computers | u | 1.93 / 0.06613305 / 3.793867 |
+
+### Numerical accuracy
+
+The mean, standard deviation and lag-1 autocorrelation are tested against the
+certified values of the nine NIST StRD univariate datasets, including the
+ones built to break a naively computed variance (values near 10^7 or 10^12
+that differ only in the last digit).
 
 ### Gage R&R verification against published results
 
@@ -280,7 +312,7 @@ The chart image above is the actual output for this dataset.
 python -m pytest
 ```
 
-The suite currently contains **961 tests** (all passing, on Python 3.10 / 3.11 / 3.12 in CI), covering:
+The suite currently contains **1143 tests** (all passing, on Python 3.10 / 3.11 / 3.12 in CI), covering:
 
 - known-answer verification of every statistic against independently
   hand-computed values (constants are additionally cross-validated against
@@ -297,6 +329,12 @@ The suite currently contains **961 tests** (all passing, on Python 3.10 / 3.11 /
 - Type-1 studies against the Bosch Booklet 10 and BPI worked examples,
 - non-normal capability against a published study, exact maximum-likelihood
   conditions, analytic quantiles and a Monte Carlo convergence check,
+- attribute charts against the limits printed for four textbook datasets,
+  Phase I / Phase II on the piston-ring data, and the frozen-limits file
+  round trip,
+- the nine NIST StRD univariate datasets (mean, standard deviation, lag-1
+  autocorrelation) against their certified values,
+- every show-your-work value against the reported value it explains,
 - Gage R&R against two published studies (Minitab, SAS, BPI), an independent
   ANOVA implementation (statsmodels, stored as fixtures), a hand-computed study
   and a Monte Carlo unbiasedness check,
@@ -323,6 +361,12 @@ measured.
   fewer than about 100 observations those are mostly extrapolation, and a poor
   fit (or a mixture of processes) makes them unreliable. The page warns in both
   cases. Johnson transformations are not implemented.
+- Attribute charts assume binomial or Poisson variation. With very large
+  samples real data are usually overdispersed and these charts over-signal;
+  Laney p'/u' charts are not implemented. Only the run rules that do not rely
+  on normal zones are applied to them.
+- The autocorrelation test is a large-sample approximation. It tells you the
+  I-MR limits are suspect; it does not correct them.
 - The Type-1 limits (Cg, Cgk >= 1.33; resolution <= 5% of T) and its K = 20%,
   L = 6 defaults are Bosch conventions; customers may set others.
 - Gage R&R covers **crossed, balanced studies of variable data** only. Attribute

@@ -779,6 +779,75 @@ resolution **rather than** an ordinary process shift, and the
 
 ---
 
+### 3.10 Independence: lag-1 autocorrelation of individuals
+
+The I–MR limits assume independent observations. Tool wear, thermal drift and
+slow material changes make consecutive readings alike; the average moving
+range then understates the process spread, the limits come out too narrow and
+the chart signals without a special cause. Before the I–MR result the
+application reports the lag-1 sample autocorrelation coefficient
+
+```
+r1 = sum_{i=1}^{n-1} (x_i - xbar)(x_{i+1} - xbar) / sum_{i=1}^{n} (x_i - xbar)^2
+```
+
+which is the definition certified in the NIST Statistical Reference Datasets.
+
+**Approximate test.** For an independent series `r1` is approximately normal
+with mean 0 and standard deviation `1/sqrt(n)` (Bartlett's large-sample
+result), so the series is called autocorrelated when
+`|r1| > z_{0.975} / sqrt(n)`; `z = r1 sqrt(n)` gives the two-sided p-value.
+The test is not run below 15 observations. In simulation with independent
+normal data and n = 100 it flags between 3 % and 6.5 % of series (nominal 5 %).
+
+**What is reported.** The check runs only for the I–MR chart on data attested
+to be in time order. A significant coefficient adds the conclusion
+`autocorrelated_observations` and the recommendation
+`rec_address_autocorrelation`; it is a *notice* below `|r1| = 0.3` and a
+*warning* at or above it (an engineering rule, not a statistical constant).
+Positive autocorrelation narrows the limits and overstates Cp/Cpk; negative
+autocorrelation (over-adjustment, two alternating streams) does the opposite.
+No number is changed or withheld.
+
+**Verification.** `r1` equals the certified value for all nine NIST StRD
+univariate datasets (`tests/test_nist_strd.py`), to 1e-12 relative for the
+ordinary ones and to the precision the data allow for NumAcc2–4.
+
+### 3.11 Phase I and Phase II: where the limits come from
+
+In practice limits are set once, from a reference period in which the process
+was stable (Phase I), and new data are then judged against those fixed limits
+(Phase II) [M, §6.2]. Recomputing the limits from all the data lets a drift
+widen and shift its own limits.
+
+- **Baseline.** The limits are estimated from the first `N` chart points
+  (subgroups, or readings for I–MR) with the formulas of §3.2–3.4, the
+  averages taken over the baseline points only.
+- **Exclusions.** A baseline point with a known assignable cause can be left
+  out of the estimate. It is still charted and still flagged, and the reason
+  the user records is carried into the warnings and the reports' methodology
+  table. For individuals, a moving range is used only when both of its
+  readings are consecutive baseline points; a range that would span an
+  excluded reading is dropped, not bridged.
+- **All points are judged.** The run rules are evaluated on every point
+  against the baseline limits. The result reports how many signals fall
+  inside the baseline and how many after it; signals inside the baseline mean
+  it is not yet a valid reference.
+- **Frozen limits.** The limits in use can be downloaded as a small CSV
+  (chart type, subgroup size, the six limit values at full precision) and
+  loaded in a later session, where nothing is re-estimated. Limits are
+  rejected if the chart type or subgroup size differs: they do not transfer.
+- **Capability is unaffected.** Cp/Cpk and Pp/Ppk are still computed from all
+  the measurements supplied, whatever the limits were estimated from.
+
+**Verification.** For Montgomery's piston-ring data, samples 1–25 as baseline
+give x-double-bar 74.001, R-bar 0.023 and X-bar limits 73.988 / 74.014 as
+published; applied to all 40 samples they flag samples 37–39 and nothing in
+the baseline. Exporting the Phase I limits and importing them for samples
+26–40 alone gives the same flags.
+
+---
+
 ## 4. Chart construction and rendering (presentation only)
 
 **The chart layer introduces no new statistical formulas.** It is a presentation
@@ -1343,11 +1412,111 @@ that would explain it could not be read.
 
 ---
 
+## 9. Attribute control charts: p, np, c, u
+
+Implemented in `app/spc/attribute.py`, on their own page.
+
+### 9.1 Charts
+
+For sample `i` with size `n_i` (items inspected, or inspection units) and
+count `x_i` (nonconforming items, or nonconformities) [M, ch. 7]:
+
+| chart | plotted | centre line | sigma |
+|---|---|---|---|
+| p | `x_i / n_i` | `pbar = sum x / sum n` | `sqrt(pbar (1 - pbar) / n_i)` |
+| np | `x_i` | `n pbar` | `sqrt(n pbar (1 - pbar))` |
+| c | `x_i` | `cbar = mean x` | `sqrt(cbar)` |
+| u | `x_i / n_i` | `ubar = sum x / sum n` | `sqrt(ubar / n_i)` |
+
+Limits are `CL +- 3 sigma`. The lower limit is not below 0; the upper limit of
+the p chart is not above 1 and that of the np chart not above `n`. The np and
+c charts need a constant sample size. The p and u charts accept varying sizes
+and then have one pair of limits per sample (drawn as steps). A point exactly
+on a limit is in control, as on the variables charts.
+
+### 9.2 Baseline and standards
+
+As in §3.11: the centre line can come from the first `N` samples, with samples
+left out for an assignable cause, and later samples are judged against it. It
+can instead be fixed at a known standard value, in which case nothing is
+estimated.
+
+### 9.3 Run rules (statistical-convention flag)
+
+The binomial and Poisson distributions are skewed, so rules built on normal
+thirds of the control band are not applied. As in Minitab, only the four tests
+that do not use zones are evaluated: one point beyond a limit, a run on one
+side of the centre line (9 for Nelson, 8 for Western Electric), six points
+trending, and fourteen alternating. With varying sample sizes the run rules
+operate on the standardised values `z_i = (plotted_i - CL) / sigma_i`; with a
+constant size, on the plotted values.
+
+### 9.4 Interpretation (engineering conventions, configurable)
+
+| code | condition |
+|---|---|
+| `process_stable` / `process_unstable` | no signal / at least one |
+| `attribute_signal_high` | signals above the centre line -> `rec_investigate_stability` |
+| `attribute_signal_low` | signals below it -> `rec_verify_improvement` (rule out missed defects first) |
+| `attribute_signal_pattern` | alternation -> `rec_check_sampling` |
+| `few_subgroups` | fewer than 20 baseline samples -> `rec_collect_more_data` |
+| `low_expected_count` | smallest expected count per sample below 5 -> `rec_increase_sample_size` |
+| `lcl_at_zero` | every lower limit is 0: one sample cannot show an improvement |
+
+### 9.5 Limits of the method
+
+The limits assume binomial (p, np) or Poisson (c, u) variation. With very
+large samples, real processes usually vary more than that between samples
+(overdispersion) and these charts flag almost every point; Laney p' and u'
+charts, which correct for it, are not implemented.
+
+### 9.6 Verification
+
+The limits printed in the documentation of the R package `qcc` for four of
+Montgomery's datasets are reproduced to the 7 digits printed
+(`tests/test_attribute.py`, data in `examples/attribute_*.csv`):
+
+| data | chart | CL | LCL | UCL |
+|---|---|---:|---:|---:|
+| orange juice, trial samples 1–30 | p | 0.2313333 | 0.05242755 | 0.4102391 |
+| same | np | 11.56667 | 2.621377 | 20.51196 |
+| orange juice, samples 15 and 23 removed | p | 0.215 | 0.04070284 | 0.3892972 |
+| circuit boards, trial samples 1–26 | c | 19.84615 | 6.481447 | 33.21086 |
+| circuit boards, samples 6 and 20 removed | c | 19.66667 | 6.362532 | 32.9708 |
+| same | u | 0.1966667 | 0.06362532 | 0.329708 |
+| personal computers | u | 1.93 | 0.06613305 | 3.793867 |
+
+The same samples are flagged as in the source (15 and 23; 6 and 20), and the
+drop in the orange-juice fraction after the machine adjustment shows as a run
+below the centre line. For the dyed-cloth data (varying sample size) no
+printed limits were found; the test checks each sample's limits against
+`ubar +- 3 sqrt(ubar / n_i)` with `ubar = 153 / 107.5`. A simulation with
+Poisson(20) counts and a known standard gives a false-alarm rate between
+0.1 % and 0.6 % per point.
+
+---
+
+## 10. Show-your-work calculations
+
+`app/explain/derivations.py` presents each reported capability index and Gage
+R&R quantity as a formula, the same formula with the analysis' numbers filled
+in, the resulting value and its source section in this document. The UI shows
+them in an expander and both PDF reports carry them as a final appendix.
+
+The values are recomputed from the displayed inputs with plain arithmetic
+rather than copied from the result. `tests/test_derivations.py` checks, for
+every estimator, one- and two-sided specifications, both Gage R&R methods and
+pooled and unpooled interaction, that each explained value equals the
+reported one to 1e-12 relative. Inputs are displayed to 6 significant digits,
+so a hand calculation from the displayed numbers agrees to about that many.
+
+---
+
 ## Document status
 
 This reference is complete for the released version. The PDF report's Technical
 Appendix cites this document as the controlled methodology source; the PDF and
 the UI never restate formulas independently. Any future statistical addition
-(e.g. variable-limit charts, further MSA studies) must be documented
+(e.g. Laney charts, further MSA studies) must be documented
 here **before** implementation, following the same formula / assumptions /
 convention-flag / reference format.

@@ -1,4 +1,4 @@
-"""Phase I / Phase II control limits (``docs/FORMULAS.md`` §3.10).
+"""Phase I / Phase II control limits (``docs/FORMULAS.md`` §3.11).
 
 In practice limits are set once, from a reference period in which the process
 was stable (Phase I), and new data are then judged against those fixed limits
