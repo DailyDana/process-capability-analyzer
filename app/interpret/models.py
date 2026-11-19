@@ -51,6 +51,7 @@ class ConclusionTopic(str, Enum):
     RULE_VIOLATIONS = "rule_violations"
     ZERO_VARIATION = "zero_variation"
     SIGMA_LEVEL = "sigma_level"
+    INDEPENDENCE = "independence"    # autocorrelation of individuals
     # Measurement system analysis (Gage R&R, app.msa)
     MEASUREMENT_SYSTEM = "measurement_system"
     DISCRIMINATION = "discrimination"
@@ -68,6 +69,7 @@ class RecommendationCategory(str, Enum):
     CHECK_DISTRIBUTION = "check_distribution"
     REVIEW_SPECIFICATION = "review_specification"
     VERIFY_GAUGE = "verify_gauge"
+    ADDRESS_AUTOCORRELATION = "address_autocorrelation"
     MAINTAIN = "maintain"            # process is good; keep monitoring
     # Measurement system analysis (Gage R&R, app.msa)
     IMPROVE_REPEATABILITY = "improve_repeatability"      # equipment / fixture

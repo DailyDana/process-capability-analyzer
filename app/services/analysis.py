@@ -22,6 +22,8 @@ from typing import Optional, Sequence
 import numpy as np
 
 from app.capability.guards import GuardThresholds, NormalityResult, assess_normality
+from app.interpret.autocorrelation import autocorrelation_findings
+from app.statistics.autocorrelation import AutocorrelationResult, lag1_autocorrelation
 from app.capability.report import CapabilityReport, StabilitySummary, build_capability_report
 from app.charts.model import ChartPairModel, build_pair_model
 from app.data.models import DataRegime, SpecLimits
@@ -139,6 +141,7 @@ class AnalysisOutcome:
     capability: Optional[CapabilityReport] = None
     interpretation: Optional[InterpretationReport] = None
     normality: Optional[NormalityResult] = None
+    autocorrelation: Optional[AutocorrelationResult] = None
 
     sigma_within: Optional[float] = None
     sigma_overall_value: Optional[float] = None
@@ -317,6 +320,12 @@ def run_analysis(request: AnalysisRequest) -> AnalysisOutcome:
 
     # --- Normality (M2 guard) ---
     normality = assess_normality(analysed)
+    # Independence is an assumption of the individuals chart only, and only
+    # meaningful when the user attests the time order.
+    autocorrelation: Optional[AutocorrelationResult] = None
+    if request.chart_kind is ChartKind.IMR and request.time_ordered and analysed.size >= 3:
+        autocorrelation = lag1_autocorrelation(analysed)
+    ac_conclusion, ac_recommendation = autocorrelation_findings(autocorrelation)
 
     # --- Data regime: the attestation is authoritative (never inferred) ------
     # Without a time-order attestation there is no rational subgrouping, so the
@@ -360,12 +369,20 @@ def run_analysis(request: AnalysisRequest) -> AnalysisOutcome:
             thresholds=request.guard_thresholds,
         )
         interpretation = interpret(capability, thresholds=request.interp_thresholds)
+        if ac_conclusion is not None and ac_recommendation is not None:
+            interpretation = replace(
+                interpretation,
+                conclusions=interpretation.conclusions + (ac_conclusion,),
+                recommendations=interpretation.recommendations + (ac_recommendation,),
+            )
     else:
         warnings.append(
             "No specification limits were provided, so capability/performance "
             "indices and the engineering interpretation cannot be computed. "
             "SPC charts and stability analysis are still available."
         )
+        if ac_conclusion is not None:
+            warnings.append(ac_conclusion.text)
 
     return AnalysisOutcome(
         ok=True,
@@ -381,6 +398,7 @@ def run_analysis(request: AnalysisRequest) -> AnalysisOutcome:
         capability=capability,
         interpretation=interpretation,
         normality=normality,
+        autocorrelation=autocorrelation,
         # sigma_within is still surfaced for transparency, but it did NOT feed
         # any capability index under the UNORDERED regime.
         sigma_within=sigma_w,

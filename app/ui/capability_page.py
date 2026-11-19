@@ -540,6 +540,22 @@ st.header("5 · SPC Analysis")
 models = outcome.chart_models
 loc, disp = models.location, models.dispersion
 
+ac = outcome.autocorrelation
+if ac is not None and ac.r1 is not None:
+    if ac.significant is None:
+        st.caption(f"Independence check: lag-1 autocorrelation r1 = {ac.r1:.3f} "
+                   f"(too few readings for the approximate test).")
+    elif ac.significant:
+        st.warning(
+            f"**Readings are autocorrelated** — lag-1 r1 = {ac.r1:.3f}, outside ±{ac.bound:.3f} "
+            f"(approximate {100 * (1 - ac.alpha):.0f}% bound, p = {ac.p_value:.3g}). I-MR limits assume "
+            "independent readings: with positive autocorrelation they are too narrow and signals "
+            "below may be false alarms; with negative, too wide."
+        )
+    else:
+        st.caption(f"Independence check: lag-1 autocorrelation r1 = {ac.r1:.3f}, within ±{ac.bound:.3f} "
+                   f"(approximate {100 * (1 - ac.alpha):.0f}% bound). No evidence against independent readings.")
+
 if outcome.stability is None:
     st.info(
         "**Stability not assessed.** These measurements are not attested to be "
