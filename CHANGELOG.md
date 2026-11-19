@@ -1,5 +1,15 @@
 # Changelog
 
+## Unreleased
+
+### Fixed
+- Non-normal capability: identical measurements now give a plain error instead of an
+  unhandled exception, and Box-Cox rejects a USL at or below zero instead of returning NaN.
+- The descriptive summary now covers the same measurements as the indices when trailing
+  readings are left out of the last subgroup.
+- The analysis service reports an estimator that does not fit the data shape as an error.
+- The non-normality warning points to the non-normal capability page.
+
 ## 0.4.0 (2026-10-23)
 
 ### Added

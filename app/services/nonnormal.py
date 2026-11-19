@@ -117,6 +117,13 @@ def run_nonnormal(req: NonNormalRequest) -> NonNormalOutcome:
     except ValueError as exc:
         return NonNormalOutcome(False, (str(exc),), tuple(warnings))
 
+    if float(np.ptp(x)) == 0.0:
+        return NonNormalOutcome(
+            False,
+            ("All measurements are identical: there is no variation to fit a distribution to. "
+             "Check the gauge resolution and the data.",),
+            tuple(warnings), tuple(float(v) for v in x), spec)
+
     fits, skipped = fit_all(x, req.unbias_c4)
     normal = fit_distribution(x, Distribution.NORMAL, req.unbias_c4)
     normal_pi = percentile_indices(normal, spec)
@@ -147,6 +154,12 @@ def run_nonnormal(req: NonNormalRequest) -> NonNormalOutcome:
     except ValueError as exc:
         return NonNormalOutcome(False, (str(exc),), tuple(warnings), tuple(float(v) for v in x), spec,
                                 tuple(fits), skipped)
+    if not (np.isfinite(summary.ppk) and np.isfinite(summary.ppm_total)):
+        return NonNormalOutcome(
+            False,
+            (f"{label}: the indices could not be computed for these data and limits "
+             "(the fitted model is degenerate). Try another method.",),
+            tuple(warnings), tuple(float(v) for v in x), spec, tuple(fits), skipped)
 
     rep = interpret_nonnormal(summary, fits, chosen, bc, spec, req.thresholds)
     return NonNormalOutcome(True, (), tuple(warnings), tuple(float(v) for v in x), spec, tuple(fits), skipped,

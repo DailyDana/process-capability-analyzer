@@ -235,7 +235,6 @@ def run_analysis(request: AnalysisRequest) -> AnalysisOutcome:
         )
 
     # --- Descriptive statistics (M1) ---
-    descriptive = describe(values, nan_policy="omit")
 
     # --- Control charts (M3) ---
     chart_pair: ChartPair
@@ -300,13 +299,19 @@ def run_analysis(request: AnalysisRequest) -> AnalysisOutcome:
 
     # --- Sigma estimation (M2) ---
     analysed = values[:n_used]
-    if request.chart_kind is ChartKind.IMR:
-        within_res = sigma_within_from_individuals(analysed)
-    else:
-        sg2 = build_subgroups(analysed, request.subgroup_size)
-        within_res = sigma_within_from_subgroups(
-            list(sg2.subgroups), estimator=request.within_estimator
-        )
+    # Describe the measurements that are actually analysed: trailing readings
+    # that do not fill a subgroup are excluded from every number in the result.
+    descriptive = describe(analysed, nan_policy="omit")
+    try:
+        if request.chart_kind is ChartKind.IMR:
+            within_res = sigma_within_from_individuals(analysed)
+        else:
+            sg2 = build_subgroups(analysed, request.subgroup_size)
+            within_res = sigma_within_from_subgroups(
+                list(sg2.subgroups), estimator=request.within_estimator
+            )
+    except ValueError as exc:  # e.g. an estimator that does not fit the data shape
+        return _fail(str(exc))
     sigma_w = within_res.sigma
     sigma_o = sigma_overall(analysed)
 

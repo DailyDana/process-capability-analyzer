@@ -9,7 +9,7 @@ Thresholds (configurable via :class:`GuardThresholds`):
 * few subgroups: number of rational subgroups < 20
 * zero variation: sigma == 0
 * non-normality: Shapiro-Wilk rejects at alpha = 0.05
-* stability: not assessed until M3 -> "stability not verified" note
+* stability: not assessed -> "stability not verified" note; unstable -> warning
 """
 
 from __future__ import annotations
@@ -260,8 +260,9 @@ def evaluate_guards(
                     "Normality is rejected. Cp/Cpk/Pp/Ppk-to-PPM translation and "
                     "the Cpk confidence interval assume a normal distribution; "
                     "their probability interpretation is unreliable here. "
-                    "Consider a distribution-appropriate capability method "
-                    "(not implemented in this version)."
+                    "Use the 'Capability, non-normal' page (percentile method "
+                    "on a fitted distribution, or Box-Cox) for Pp/Ppk and PPM "
+                    "that do not assume normality."
                 ),
             )
         )

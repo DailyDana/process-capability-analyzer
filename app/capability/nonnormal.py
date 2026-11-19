@@ -302,6 +302,8 @@ def box_cox(x: NDArray[np.float64], spec: NonNormalSpec, *, lam: Optional[float]
     usl, lsl = spec.usl, spec.effective_lsl
     if lsl is not None and lsl <= 0:
         raise ValueError("Box-Cox cannot transform an LSL <= 0; treat it as a lower boundary instead.")
+    if usl is not None and usl <= 0:
+        raise ValueError("Box-Cox cannot transform a USL <= 0: the data are strictly positive, so check the limit.")
     usl_t = float(boxcox_transform(usl, lam)) if usl is not None else None
     lsl_t = float(boxcox_transform(lsl, lam)) if lsl is not None else None
     ppu = (usl_t - m) / (3 * s) if usl_t is not None else None
