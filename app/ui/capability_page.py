@@ -39,6 +39,7 @@ from app.services.analysis import (
     run_analysis,
 )
 from app.services.data_loader import clean_column, load_table
+from app.explain.derivations import capability_derivations
 from app.spc.phases import FrozenLimits
 from app.spc.rules import RuleSet
 from app.statistics.variation import WithinEstimator
@@ -760,6 +761,14 @@ else:
             for cav in ci.caveats:
                 st.caption(f"• {cav}")
 
+    derivations = capability_derivations(cap, outcome.within_estimator_used, outcome.within_detail)
+    with st.expander("🧮 Show the calculation of every index"):
+        st.caption(
+            "Formula, the same formula with this analysis' numbers, and the source. Displayed to "
+            "6 significant digits; the results above are computed at full precision."
+        )
+        st.dataframe(pd.DataFrame([d.as_row() for d in derivations]), width="stretch", hide_index=True)
+
     if cap.warnings:
         st.subheader("Reliability warnings")
         for w in cap.warnings:
@@ -884,7 +893,11 @@ else:
     )
     e3.download_button(
         "⬇️ Download PDF report",
-        data=pdf_report.build_pdf_bytes(bundle, outcome.chart_models),
+        data=pdf_report.build_pdf_bytes(
+            bundle, outcome.chart_models,
+            derivations=capability_derivations(outcome.capability, outcome.within_estimator_used,
+                                               outcome.within_detail),
+        ),
         file_name="spc_report.pdf",
         mime="application/pdf",
         width="stretch",

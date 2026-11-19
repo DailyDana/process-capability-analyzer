@@ -22,7 +22,7 @@ from __future__ import annotations
 
 import io
 from datetime import datetime, timezone
-from typing import Optional
+from typing import Optional, Sequence
 
 from reportlab.lib import colors
 from reportlab.lib.enums import TA_LEFT
@@ -43,6 +43,7 @@ from reportlab.platypus import (
 
 from app.charts import render as chart_render
 from app.charts.model import ChartPairModel
+from app.explain.derivations import Derivation, ascii_rows
 from app.reporting.bundle import AnalysisBundle
 
 __all__ = ["build_pdf_bytes", "write_pdf", "NA"]
@@ -483,11 +484,26 @@ def _appendix(story: list, bundle: AnalysisBundle) -> None:
 # ---------------------------------------------------------------------------
 # Entry points
 # ---------------------------------------------------------------------------
+def _calculations(story: list, derivations: Sequence[Derivation]) -> None:
+    """Appendix: every reported index as formula -> numbers -> value."""
+    story.append(_p("8. Calculations", _H1))
+    story.append(_p(
+        "Each reported index, with its formula, the inputs filled in and the source. "
+        "Numbers are shown to 6 significant digits; the results are computed at full precision.", _BODY))
+    data: list[list[object]] = [["Quantity", "Formula", "With the numbers", "Value", "Source"]]
+    data += [[row[0], _p(row[1], _CELL), _p(row[2], _CELL), row[3], _p(row[4], _CELL)]
+             for row in ascii_rows(list(derivations))]
+    t = Table(data, colWidths=[w * mm for w in (27, 45, 55, 19, 28)], repeatRows=1)
+    t.setStyle(_TABLE_STYLE)
+    story.append(t)
+
+
 def build_pdf_bytes(
     bundle: AnalysisBundle,
     chart_models: Optional[ChartPairModel] = None,
     *,
     title: str = "SPC / Process Capability Analysis Report",
+    derivations: Sequence[Derivation] = (),
 ) -> bytes:
     """Build the full PDF report and return it as bytes.
 
@@ -522,6 +538,9 @@ def build_pdf_bytes(
     _recommendations(story, bundle)
     story.append(PageBreak())
     _appendix(story, bundle)
+    if derivations:
+        story.append(PageBreak())
+        _calculations(story, derivations)
 
     doc.build(story)
     return buf.getvalue()

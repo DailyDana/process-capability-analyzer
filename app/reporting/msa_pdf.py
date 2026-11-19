@@ -25,6 +25,7 @@ from reportlab.lib.styles import ParagraphStyle
 from reportlab.lib.units import mm
 from reportlab.platypus import HRFlowable, PageBreak, Paragraph, SimpleDocTemplate, Spacer, Table
 
+from app.explain.derivations import ascii_rows, gage_derivations
 from app.charts.gage_model import build_components_model, build_interaction_model, build_range_model
 from app.charts.gage_render import render_components, render_interaction, render_range_by_operator
 from app.charts.type1_render import render_type1_run_chart
@@ -266,6 +267,13 @@ def gage_rr_pdf_bytes(
         "Columns are operator / trial." if study.n_operators * study.n_trials <= 12 else "One row per reading.",
         _SMALL))
     story.append(_measurement_table(study))
+    story.append(PageBreak())
+    story.append(_pe("7. Calculations", _H1))
+    story.append(_pe(
+        "Each reported quantity, with its formula, the inputs filled in and the source. "
+        "Numbers are shown to 6 significant digits; the results are computed at full precision.", _SMALL))
+    story.append(_grid(["Quantity", "Formula", "With the numbers", "Value", "Source"],
+                       list(ascii_rows(gage_derivations(result))), [30, 42, 52, 18, 28]))
     return build_document(story, title)
 
 

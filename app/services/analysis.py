@@ -182,6 +182,7 @@ class AnalysisOutcome:
     sigma_within: Optional[float] = None
     sigma_overall_value: Optional[float] = None
     within_estimator_used: Optional[str] = None
+    within_detail: dict[str, float] = field(default_factory=dict)
     n_subgroups: Optional[int] = None
     subgroup_size: Optional[int] = None
     n_used: int = 0
@@ -498,6 +499,7 @@ def run_analysis(request: AnalysisRequest) -> AnalysisOutcome:
         sigma_within=sigma_w,
         sigma_overall_value=sigma_o,
         within_estimator_used=within_res.estimator.value,
+        within_detail=dict(within_res.detail),
         n_subgroups=n_subgroups,
         subgroup_size=subgroup_size,
         n_used=n_used,

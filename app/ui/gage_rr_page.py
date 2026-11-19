@@ -29,6 +29,7 @@ from app.msa.interpret import GageThresholds, GrrVerdict, headline_verdict
 from app.msa.models import GageMethod
 from app.reporting.bundle import ExportMeta
 from app.reporting.gage_report import gage_csv_string, gage_workbook_bytes
+from app.explain.derivations import gage_derivations
 from app.reporting.msa_pdf import gage_rr_pdf_bytes
 from app.services.data_loader import load_table
 from app.services.gage_rr import columns_to_request, run_gage_study
@@ -256,6 +257,13 @@ elif result.average_range is not None:
             hide_index=True,
         )
         st.caption("The Average & Range method cannot separate the operator × part interaction.")
+
+with st.expander("🧮 Show the calculation of every quantity"):
+    st.caption(
+        "Formula, the same formula with this study's numbers, and the source. Displayed to "
+        "6 significant digits; the results above are computed at full precision."
+    )
+    st.dataframe(pd.DataFrame([d.as_row() for d in gage_derivations(result)]), width="stretch", hide_index=True)
 
 # ===========================================================================
 # 3. CHARTS
