@@ -27,13 +27,16 @@ Phase I is reported STABLE with 0 rule violations, Cp 1.70 / Cpk 1.66. All 40
 samples together are reported UNSTABLE (N1, N5, N6): the Phase II drift is
 caught.
 
-Suggested settings: X-bar/R chart, subgroup size 5, Nelson rules.
+Suggested settings: X-bar/R chart, subgroup size 5, Nelson rules. Both files
+are offered under *Example data* on the capability page with these settings
+(the 40-subgroup file with limits from the first 25 subgroups).
 
 ## sample_measurements.csv — synthetic
 
 58 observations: a stable process seeded with one gross outlier and a sustained
 shift at the end. Built to exercise the rule engine end to end; it is not real
-measurement data. Analyzed as I-MR with USL 11.5 / LSL 8.5.
+measurement data. Analyzed as I-MR with USL 11.5 / LSL 8.5; offered under
+*Example data* on the capability page with these settings.
 
 ## gage_rr_aiag.csv — AIAG MSA reference Gage R&R study
 

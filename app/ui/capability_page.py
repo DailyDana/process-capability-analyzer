@@ -60,6 +60,69 @@ LIMITS_BASELINE = "A baseline period (Phase I)"
 LIMITS_IMPORTED = "Imported limits (Phase II)"
 LIMIT_SOURCES = [LIMITS_ALL, LIMITS_BASELINE, LIMITS_IMPORTED]
 
+# Example datasets for trying the app without a file of one's own. Each one
+# presets the settings it is meant to be read with; every widget stays
+# editable afterwards. Sources and published results: examples/DATASETS.md.
+_EXAMPLES_DIR = _ROOT / "examples"
+EXAMPLES = {
+    "Piston rings, Phase I: 25 subgroups of 5 (stable, capable)": {
+        "file": "pistonrings_phase1.csv",
+        "chart": "X̄–R  (subgroups, n ≤ 8)", "n": 5,
+        "usl": 74.05, "lsl": 73.95, "nominal": 74.0, "unit": "mm", "characteristic": "Inside diameter",
+        "limits": "All the data", "baseline": None,
+        "note": (
+            "Inside diameter of forged piston rings (Montgomery; R package qcc, `pistonrings`). "
+            "Expect a stable process (no rule violations), X̄ limits 73.988 / 74.014 as published, "
+            "Cpk ≈ 1.66."
+        ),
+    },
+    "Piston rings, 40 subgroups: limits from the first 25, drift after": {
+        "file": "pistonrings.csv",
+        "chart": "X̄–R  (subgroups, n ≤ 8)", "n": 5,
+        "usl": 74.05, "lsl": 73.95, "nominal": 74.0, "unit": "mm", "characteristic": "Inside diameter",
+        "limits": "A baseline period (Phase I)", "baseline": 25,
+        "note": (
+            "The same process with 15 later subgroups in which the mean drifts upward. The limits come "
+            "from the 25 stable subgroups, so the drift is judged against them. Switch *Control limits "
+            "from* to *All the data* to see the drift widen the limits and hide part of itself."
+        ),
+    },
+    "Individuals: outlier and shift (synthetic, I–MR)": {
+        "file": "sample_measurements.csv",
+        "chart": "I–MR  (individuals, n = 1)", "n": None,
+        "usl": 11.5, "lsl": 8.5, "nominal": None, "unit": "", "characteristic": "Example characteristic",
+        "limits": "All the data", "baseline": None,
+        "note": (
+            "58 single readings, made up to exercise the rules: one gross outlier and a sustained "
+            "shift at the end. Expect an unstable verdict, so capability is reported with a caveat."
+        ),
+    },
+}
+
+
+def _apply_example(name: str, values: list) -> None:
+    """Install an example dataset and the settings it is meant to be read with."""
+    ex = EXAMPLES[name]
+    ss = st.session_state
+    ss.raw_values = values
+    ss.source_name = f"example: {ex['file']}"
+    ss.cleaning = clean_column(values)
+    ss.active_source = "example"
+    ss.last_load_id = ("example", name)
+    ss.chart_label = ex["chart"]
+    if ex["n"] is not None:
+        ss.subgroup_size_in = ex["n"]
+    ss.use_usl, ss.usl_in = ex["usl"] is not None, float(ex["usl"] or 0.0)
+    ss.use_lsl, ss.lsl_in = ex["lsl"] is not None, float(ex["lsl"] or 0.0)
+    ss.use_nom, ss.nom_in = ex["nominal"] is not None, float(ex["nominal"] or 0.0)
+    ss.unit_in = ex["unit"]
+    ss.characteristic_in = ex["characteristic"]
+    ss.limits_source = ex["limits"]
+    if ex["baseline"] is not None:
+        kind = CHART_LABELS[ex["chart"]].value
+        ss[f"n_baseline_{kind}_{ex['n']}"] = ex["baseline"]
+
+
 ESTIMATOR_LABELS = {
     "Auto (R̄/d₂, S̄/c₄ for n ≥ 9)": WithinEstimator.AUTO,
     "R̄ / d₂ (average range)": WithinEstimator.RBAR_D2,
@@ -153,7 +216,7 @@ st.header("1 · Data Input")
 # an unrelated rerun never can.
 source = st.radio(
     "Data source",
-    ["📁 File", "✍️ Manual entry"],
+    ["📁 File", "🧪 Example data", "✍️ Manual entry"],
     key="data_source",
     horizontal=True,
     help=(
@@ -163,7 +226,22 @@ source = st.radio(
 )
 is_file_source = source.endswith("File")
 
-if is_file_source:
+if source.endswith("Example data"):
+    example = st.selectbox("Example dataset", list(EXAMPLES), key="example_choice")
+    st.caption(EXAMPLES[example]["note"] + " Sources: `examples/DATASETS.md`.")
+    ex_frame = pd.read_csv(_EXAMPLES_DIR / EXAMPLES[example]["file"], dtype=str)
+    ex_values = list(ex_frame["measurement"].tolist())
+    ex_id = ("example", example)
+    # same ownership rule as a file: never take over manual or file data unasked
+    if ex_id != st.session_state.get("last_load_id"):
+        if st.session_state.get("active_source") in (None, "example"):
+            _apply_example(example, ex_values)
+        else:
+            st.info("Your own data is still being analysed. Load the example to replace it.")
+            if st.button("Load this example", type="secondary"):
+                _apply_example(example, ex_values)
+                st.rerun()
+elif is_file_source:
     uploaded = st.file_uploader(
         "Measurement file",
         type=["csv", "txt", "tsv", "xlsx", "xls"],
@@ -244,7 +322,7 @@ else:
 
 cleaning = st.session_state.cleaning
 if cleaning is None:
-    st.info("Upload a file or enter data manually to begin.")
+    st.info("Upload a file or enter data manually to begin, or choose *🧪 Example data* to try the app.")
     st.stop()
 
 # Always show which dataset the numbers below actually come from.
@@ -253,6 +331,11 @@ st.caption(
     f"**Active data source:** {st.session_state.get('source_name') or 'unknown'}"
     + (" *(manual entry)*" if _active == "manual" else "")
 )
+if _active == "example" and not source.endswith("Example data"):
+    st.info(
+        f"The analysis below still uses the example dataset "
+        f"**{st.session_state.get('source_name')}**. Upload a file or enter data to replace it."
+    )
 if _active == "manual" and is_file_source:
     st.info(
         "The analysis below still uses your **manually entered** data. Upload a "
@@ -298,21 +381,24 @@ st.header("2 · Specifications & Metadata")
 sc1, sc2 = st.columns([2, 3])
 with sc1:
     st.subheader("Specification limits")
-    use_usl = st.checkbox("Upper specification limit (USL)", value=True)
-    usl = st.number_input("USL", value=0.0, format="%.6f",
+    for _k, _v in (("use_usl", True), ("use_lsl", True), ("use_nom", False),
+                   ("usl_in", 0.0), ("lsl_in", 0.0), ("nom_in", 0.0)):
+        st.session_state.setdefault(_k, _v)
+    use_usl = st.checkbox("Upper specification limit (USL)", key="use_usl")
+    usl = st.number_input("USL", format="%.6f",
                           disabled=not use_usl, key="usl_in") if use_usl else None
-    use_lsl = st.checkbox("Lower specification limit (LSL)", value=True)
-    lsl = st.number_input("LSL", value=0.0, format="%.6f",
+    use_lsl = st.checkbox("Lower specification limit (LSL)", key="use_lsl")
+    lsl = st.number_input("LSL", format="%.6f",
                           disabled=not use_lsl, key="lsl_in") if use_lsl else None
-    use_nom = st.checkbox("Nominal / target", value=False)
-    nominal = st.number_input("Nominal", value=0.0, format="%.6f",
+    use_nom = st.checkbox("Nominal / target", key="use_nom")
+    nominal = st.number_input("Nominal", format="%.6f",
                               disabled=not use_nom, key="nom_in") if use_nom else None
 
 with sc2:
     st.subheader("Characteristic & metadata")
     m1, m2 = st.columns(2)
-    characteristic = m1.text_input("Characteristic name", value="")
-    unit = m2.text_input("Measurement unit", value="",
+    characteristic = m1.text_input("Characteristic name", key="characteristic_in")
+    unit = m2.text_input("Measurement unit", key="unit_in",
                          help="Free text (mm, inch, °C, …). Never interpreted numerically.")
     m3, m4 = st.columns(2)
     part_id = m3.text_input("Part ID", value="")
@@ -383,12 +469,13 @@ values = cleaning.values
 # --- Sidebar: analysis configuration ---
 with st.sidebar:
     st.header("Analysis configuration")
-    chart_label = st.selectbox("Control chart", list(CHART_LABELS.keys()))
+    chart_label = st.selectbox("Control chart", list(CHART_LABELS.keys()), key="chart_label")
     chart_kind = CHART_LABELS[chart_label]
     subgroup_size = 1
     if chart_kind is not ChartKind.IMR:
+        st.session_state.setdefault("subgroup_size_in", 5)
         subgroup_size = st.number_input(
-            "Subgroup size (n)", min_value=2, max_value=25, value=5, step=1,
+            "Subgroup size (n)", min_value=2, max_value=25, step=1, key="subgroup_size_in",
             help="Measurements per rational subgroup. Must be balanced.",
         )
         st.caption(
@@ -415,9 +502,13 @@ with st.sidebar:
     excluded: tuple[tuple[int, str], ...] = ()
     frozen_limits = None
     if limits_source == LIMITS_BASELINE and n_points >= 2:
+        _nb_key = f"n_baseline_{chart_kind.value}_{int(subgroup_size)}"
+        st.session_state.setdefault(_nb_key, n_points)
+        if st.session_state[_nb_key] > n_points:  # a preset from a longer dataset
+            st.session_state[_nb_key] = n_points
         n_baseline = int(st.number_input(
             f"Baseline: first N {point_name}s", min_value=2, max_value=n_points,
-            value=n_points, step=1, key=f"n_baseline_{chart_kind.value}_{int(subgroup_size)}",
+            step=1, key=_nb_key,
         ))
         picked = st.multiselect(
             f"Leave out of the limits ({point_name} number)", list(range(1, n_baseline + 1)),

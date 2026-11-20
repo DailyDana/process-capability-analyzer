@@ -5,9 +5,12 @@
 [![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-blue.svg)](https://www.python.org/downloads/)
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
 
-**[Try it live -> spc-analyzer.streamlit.app](https://spc-analyzer.streamlit.app/)** — no install. The Gage R&R
-page opens on the AIAG reference study and reproduces Minitab's published results
-without any input.
+**[Try it live -> spc-analyzer.streamlit.app](https://spc-analyzer.streamlit.app/)** — no install. On the
+capability page, choose *Example data* under *Data source* to load the piston-ring
+study (Phase I, or all 40 subgroups judged against the first 25) or a synthetic
+individuals series, with the chart and specification limits already set. The Gage
+R&R page opens on the AIAG reference study and reproduces Minitab's published
+results without any input.
 
 Free, open-source statistics for the three questions a supplier answers before
 shipping a new part: **is the gauge good enough** (Type-1 study and Gage R&R),

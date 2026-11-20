@@ -1,5 +1,14 @@
 # Changelog
 
+## Unreleased
+
+### Added
+- **Example data on the capability page**: a third data source loads one of
+  three bundled datasets (piston rings Phase I; piston rings with limits from
+  the first 25 subgroups; a synthetic individuals series) and presets the chart,
+  subgroup size, specification limits and limit source. It never replaces data
+  the user loaded without asking.
+
 ## 0.5.0 (2026-11-20)
 
 ### Added

@@ -474,3 +474,67 @@ class TestInterpretationThresholdControls:
             if "Invalid interpretation thresholds" in e.value
         ]
 
+
+
+class TestExampleData:
+    """The bundled example datasets load with the settings they are meant for."""
+
+    def _pick(self, name_start: str | None = None) -> AppTest:
+        at = AppTest.from_file(APP, default_timeout=90).run()
+        at.radio(key="data_source").set_value("\U0001F9EA Example data").run()
+        if name_start is not None:
+            box = at.selectbox(key="example_choice")
+            box.set_value(next(o for o in box.options if o.startswith(name_start))).run()
+        assert not at.exception, f"App raised: {at.exception}"
+        return at
+
+    def test_piston_rings_phase1_matches_published_limits(self) -> None:
+        at = self._pick("Piston rings, Phase I")
+        ss = at.session_state
+        assert ss["active_source"] == "example"
+        assert len(ss["cleaning"].values) == 125
+        assert ss["chart_label"].startswith("X̄–R") and ss["subgroup_size_in"] == 5
+        out = ss["outcome"]
+        assert out.ok and out.stability.is_stable
+        assert out.limits.location_ucl == pytest.approx(74.01431, abs=5e-6)
+        assert out.limits.location_lcl == pytest.approx(73.98804, abs=5e-6)
+        assert out.capability.capability.cpk == pytest.approx(1.66, abs=0.01)
+
+    def test_piston_rings_drift_is_judged_against_the_first_25(self) -> None:
+        at = self._pick("Piston rings, 40 subgroups")
+        out = at.session_state["outcome"]
+        assert len(at.session_state["cleaning"].values) == 200
+        assert out.ok and out.limits.n_baseline == 25
+        assert out.limits.location_ucl == pytest.approx(74.01431, abs=5e-6)
+        assert not out.stability.is_stable
+
+    def test_individuals_example_is_unstable(self) -> None:
+        at = self._pick("Individuals")
+        out = at.session_state["outcome"]
+        assert at.session_state["chart_label"].startswith("I–MR")
+        assert out.ok and not out.stability.is_stable
+        assert at.session_state["usl_in"] == 11.5 and at.session_state["lsl_in"] == 8.5
+
+    def test_no_session_state_warning_from_presets(self) -> None:
+        for start in ("Piston rings, Phase I", "Piston rings, 40", "Individuals"):
+            at = self._pick(start)
+            texts = " ".join(w.value for w in at.warning) + " ".join(str(e.value) for e in at.exception)
+            assert "Session State" not in texts
+
+    def test_example_does_not_replace_manual_data_unasked(self) -> None:
+        from app.services.data_loader import clean_column
+
+        at = AppTest.from_file(APP, default_timeout=90).run()
+        manual = [5.0, 5.1, 4.9, 5.2, 5.0, 4.8, 5.3, 5.1]
+        at.session_state["raw_values"] = manual
+        at.session_state["source_name"] = "manual entry"
+        at.session_state["cleaning"] = clean_column(manual)
+        at.session_state["active_source"] = "manual"
+        at.run()
+        at.radio(key="data_source").set_value("\U0001F9EA Example data").run()
+        assert at.session_state["active_source"] == "manual"
+        load = [b for b in at.button if b.label == "Load this example"]
+        assert load, "expected an explicit load button"
+        load[0].click().run()
+        assert at.session_state["active_source"] == "example"
+        assert len(at.session_state["cleaning"].values) == 125
